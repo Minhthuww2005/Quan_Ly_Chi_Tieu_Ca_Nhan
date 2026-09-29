@@ -4,7 +4,7 @@ Tài liệu này là nguồn phân công duy nhất của nhóm. Không tự th�
 
 ## A — Core, Auth và Revenue CRUD
 
-Nhánh: `feature/core-auth`
+Nhánh: `duy/core-auth`
 
 ### File được giao
 
@@ -42,9 +42,9 @@ Nhánh: `feature/core-auth`
 - Interface/event sau commit.
 - Claims JWT thống nhất là `sub` hoặc `userId`, chỉ chọn một.
 
-## B — Report, Query và Redis Cache
+## B — Cache & Query
 
-Nhánh: `feature/report-cache`
+Nhánh: `thanh/cache-query`
 
 ### File được giao
 
@@ -74,9 +74,9 @@ Nhánh: `feature/report-cache`
 - Contract `RevenueReportResponse`.
 - Hàm lấy snapshot mới nhất sau SignalR reconnect.
 
-## C — Validation, Queue và Recurring Worker
+## C — Queue & Background
 
-Nhánh: `feature/recurring-worker`
+Nhánh: `thuw/queue-background`
 
 ### File được giao
 
@@ -109,9 +109,9 @@ Nhánh: `feature/recurring-worker`
 - Gọi luồng tạo Revenue do A cung cấp thay vì copy logic.
 - Phát `RevenueChanged(GroupId)` sau commit để D cập nhật dashboard.
 
-## D — SignalR, Options và React UI
+## D — Realtime & Options
 
-Nhánh: `feature/realtime-ui`
+Nhánh: `tuyen/realtime-options`
 
 ### File được giao
 
@@ -125,8 +125,8 @@ Nhánh: `feature/realtime-ui`
 - SignalR Hub authorize membership trước khi join room theo Group.
 - Chỉ broadcast sau database commit.
 - Automatic reconnect và gọi lại report snapshot sau reconnect.
-- React có ba màn: Dashboard, Revenue và Recurring.
-- React dùng API của A/B/C, không tự viết lại business rule ở frontend.
+- Phối hợp phần React dùng ba API REV-01/02/03; React không được tính thành nghiệp vụ mới.
+- React không tự viết lại business rule của A/B/C.
 - Demo hai client cùng Group nhận update và Group khác không nhận.
 
 ### Không làm

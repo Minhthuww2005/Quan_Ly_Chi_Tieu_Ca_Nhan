@@ -34,12 +34,12 @@ tests/
 
 | Người | Nhánh đề xuất | Folder sở hữu chính | Công việc |
 |---|---|---|---|
-| A — Core & Auth | `feature/core-auth` | `Common`, `Domain`, `Features/Auth`, `Features/Revenues`, `Infrastructure/Authorization`, `Infrastructure/Persistence` | Pipeline, DI, EF Core, JWT, policy theo Group, Revenue Minimal API |
-| B — Cache & Query | `feature/report-cache` | `Features/Reports`, `Infrastructure/Caching`, `web/src/features/dashboard` | Report Controller, LINQ aggregate, index, Redis TTL/invalidation, benchmark |
-| C — Queue & Background | `feature/recurring-worker` | `Features/Recurring`, `Infrastructure/Workers`, validators, unit tests | Rule định kỳ, queue, worker, retry/backoff, idempotency |
-| D — Realtime & Frontend | `feature/realtime-ui` | `Infrastructure/Realtime`, `Options`, `web/src` | SignalR room/reconnect, Options, React shell và tích hợp API |
+| A — Core & Auth | `duy/core-auth` | `Program.cs`, middleware, DI, EF Core, JWT/resource authorization, REV-01 | Pipeline; error/requestId; migration; JWT + Group policy; Revenue Minimal API |
+| B — Cache & Query | `thanh/cache-query` | `StatisticsQueryService`, Redis, invalidation, query/index | REV-02; cache key/TTL; indexes; benchmark trước/sau |
+| C — Queue & Background | `thuw/queue-background` | Validation, recurring worker, queue, retry/idempotency | REV-03; CalculateNextRunOn; RunLog; test job chạy hai lần |
+| D — Realtime & Options | `tuyen/realtime-options` | SignalR + Options | DashboardHub; authorize room; reconnect/resync; Redis/Worker Options |
 
-Phần `.github`, Docker, integration tests, README và minh chứng Tầng 2 là việc chung. Các file placeholder có `TODO(A/B/C/D)` để nhận biết người chủ trì.
+Phần `.github`, Docker, integration tests, README, React UI và minh chứng Tầng 2 là việc chung. React chỉ là lớp giao diện sử dụng REV-01/02/03, không phải chức năng nghiệp vụ thứ tư. Các file placeholder có `TODO(A/B/C/D)` để nhận biết người chủ trì.
 
 ## Thứ tự ghép code để ít conflict
 

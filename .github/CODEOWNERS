@@ -17,12 +17,12 @@
 /src/RevenueManagement.Api/Features/Reports/                    @thanhhandsome-max
 /src/RevenueManagement.Api/Infrastructure/Caching/              @thanhhandsome-max
 
-# Thuw — Validation, Queue và Background Worker
+# Thuw — Queue & Background
 /src/RevenueManagement.Api/Features/Recurring/                  @Minhthuww2005
 /src/RevenueManagement.Api/Infrastructure/Workers/              @Minhthuww2005
 /src/RevenueManagement.Api/Features/Revenues/RevenueValidator.cs @Minhthuww2005
 
-# Tuyen — Realtime, Options và React (owner tạm: trưởng repo)
+# Tuyen — Realtime & Options (owner tạm: trưởng repo)
 /src/RevenueManagement.Api/Infrastructure/Realtime/             @Minhthuww2005
 /src/RevenueManagement.Api/Options/                             @Minhthuww2005
 /web/src/                                                       @Minhthuww2005

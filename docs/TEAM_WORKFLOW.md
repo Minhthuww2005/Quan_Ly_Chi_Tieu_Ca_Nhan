@@ -5,9 +5,9 @@
 - `main`: bản ổn định để demo/nộp bài. Không push trực tiếp.
 - `develop`: nhánh tích hợp chung. Mọi feature PR vào đây trước.
 - `duy/core-auth`: Core, Auth, EF Core và Revenue CRUD.
-- `thanh/report-cache`: Report query, Redis cache và benchmark.
-- `thuw/recurring-worker`: Validation, recurring rule, queue và worker.
-- `tuyen/realtime-ui`: SignalR, Options và React UI.
+- `thanh/cache-query`: StatisticsQueryService, Redis, invalidation, index và benchmark.
+- `thuw/queue-background`: Validation, recurring worker, queue, retry và idempotency.
+- `tuyen/realtime-options`: SignalR room/reconnect/resync và Redis/Worker Options.
 
 Các branch `Duy`, `Thanh`, `Thuw`, `Tuyen` cũ được giữ lại để không làm mất lịch sử. Không tiếp tục commit mới vào các branch tên cũ.
 
@@ -15,9 +15,9 @@ Các branch `Duy`, `Thanh`, `Thuw`, `Tuyen` cũ được giữ lại để khôn
 
 ```text
 duy/core-auth -----------┐
-thanh/report-cache ------┤
-thuw/recurring-worker ---┼── Pull Request ──> develop ── test tích hợp ──> main
-tuyen/realtime-ui -------┘
+thanh/cache-query -------┤
+thuw/queue-background ---┼── Pull Request ──> develop ── test tích hợp ──> main
+tuyen/realtime-options --┘
 ```
 
 Khi một module có task lớn, tạo branch ngắn từ branch module:
