@@ -1,0 +1,36 @@
+# CODEOWNERS tạm thời dùng hai tài khoản GitHub đã xác minh.
+# Cập nhật owner của Duy và Tuyen khi nhóm cung cấp đúng GitHub username.
+# GitHub chỉ nhận username (@...), không nhận tên branch hoặc tên hiển thị.
+
+*                                                               @Minhthuww2005 @thanhhandsome-max
+
+# Duy — Core, Auth, Revenue CRUD (owner tạm: trưởng repo + Thanh)
+/src/RevenueManagement.Api/Common/                              @Minhthuww2005 @thanhhandsome-max
+/src/RevenueManagement.Api/Domain/                              @Minhthuww2005 @thanhhandsome-max
+/src/RevenueManagement.Api/Features/Auth/                       @Minhthuww2005 @thanhhandsome-max
+/src/RevenueManagement.Api/Features/Revenues/                   @Minhthuww2005 @thanhhandsome-max
+/src/RevenueManagement.Api/Infrastructure/Authorization/        @Minhthuww2005 @thanhhandsome-max
+/src/RevenueManagement.Api/Infrastructure/Persistence/          @Minhthuww2005 @thanhhandsome-max
+/src/RevenueManagement.Api/Program.cs                           @Minhthuww2005 @thanhhandsome-max
+
+# Thanh — Report và Redis
+/src/RevenueManagement.Api/Features/Reports/                    @thanhhandsome-max
+/src/RevenueManagement.Api/Infrastructure/Caching/              @thanhhandsome-max
+
+# Thuw — Validation, Queue và Background Worker
+/src/RevenueManagement.Api/Features/Recurring/                  @Minhthuww2005
+/src/RevenueManagement.Api/Infrastructure/Workers/              @Minhthuww2005
+/src/RevenueManagement.Api/Features/Revenues/RevenueValidator.cs @Minhthuww2005
+
+# Tuyen — Realtime, Options và React (owner tạm: trưởng repo)
+/src/RevenueManagement.Api/Infrastructure/Realtime/             @Minhthuww2005
+/src/RevenueManagement.Api/Options/                             @Minhthuww2005
+/web/src/                                                       @Minhthuww2005
+
+# Dashboard là điểm giao giữa Thanh và Tuyen; dòng cụ thể đặt sau để override /web/src/.
+/web/src/features/dashboard/                                    @thanhhandsome-max @Minhthuww2005
+
+# File chung cần review chéo
+/.github/                                                       @Minhthuww2005 @thanhhandsome-max
+/docs/                                                          @Minhthuww2005 @thanhhandsome-max
+/tests/                                                         @Minhthuww2005 @thanhhandsome-max

@@ -1,0 +1,20 @@
+services:
+  api:
+    build: .
+    ports: ["5080:8080"]
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__Database: Server=sql,1433;Database=RevenueDb;User Id=sa;Password=${SQL_PASSWORD};TrustServerCertificate=True
+      Redis__ConnectionString: redis:6379
+      Jwt__SigningKey: ${JWT_SIGNING_KEY}
+    depends_on: [sql, redis]
+  sql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment: { ACCEPT_EULA: "Y", MSSQL_SA_PASSWORD: "${SQL_PASSWORD}" }
+    ports: ["1433:1433"]
+    volumes: ["sql-data:/var/opt/mssql"]
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+volumes: { sql-data: {} }
