@@ -3,6 +3,9 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>RevenueManagement.Api-Local</UserSecretsId>
   </PropertyGroup>
-  <!-- TODO: mỗi module thêm package khi bắt đầu triển khai để commit skeleton không kéo dependency thừa. -->
+  <ItemGroup>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+  </ItemGroup>
 </Project>

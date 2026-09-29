@@ -58,6 +58,19 @@ Phần `.github`, Docker, integration tests, README, React UI và minh chứng T
 - DTO frontend/backend phải khớp nhau; không trả thẳng EF entity ra API.
 - Không tin `GroupId` hoặc `CreatedByUserId` từ client nếu có thể suy ra từ token/context.
 
+## Kết nối Neon PostgreSQL
+
+Không ghi connection string thật vào `appsettings.json` hoặc Git. Với môi trường local, dùng .NET User Secrets:
+
+```powershell
+dotnet user-secrets set "ConnectionStrings:Database" "Host=YOUR_NEON_HOST;Port=5432;Database=neondb;Username=YOUR_ROLE;Password=YOUR_PASSWORD;SSL Mode=Require;Channel Binding=Require" --project src/RevenueManagement.Api
+dotnet run --project src/RevenueManagement.Api
+```
+
+Kiểm tra kết nối thật tại `http://localhost:5080/health/database`. Kết quả `Healthy` mới được xem là kết nối thành công.
+
+Neon cung cấp URI dạng `postgresql://...`; ứng dụng dùng chuỗi key/value của Npgsql như trong `.env.example`. Khi deploy, đặt secret bằng environment variable `ConnectionStrings__Database`.
+
 ## Khởi tạo Git
 
 ```powershell
