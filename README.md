@@ -34,12 +34,12 @@ tests/
 
 | Người | Nhánh đề xuất | Folder sở hữu chính | Công việc |
 |---|---|---|---|
-| A — Core & Auth | `duy/core-auth` | `Program.cs`, middleware, DI, EF Core, JWT/resource authorization, REV-01 | Pipeline; error/requestId; migration; JWT + Group policy; Revenue Minimal API |
-| B — Cache & Query | `thanh/cache-query` | `StatisticsQueryService`, Redis, invalidation, query/index | REV-02; cache key/TTL; indexes; benchmark trước/sau |
-| C — Queue & Background | `thuw/queue-background` | Validation, recurring worker, queue, retry/idempotency | REV-03; CalculateNextRunOn; RunLog; test job chạy hai lần |
-| D — Realtime & Options | `tuyen/realtime-options` | SignalR + Options | DashboardHub; authorize room; reconnect/resync; Redis/Worker Options |
+| Duy — Core & Auth | `duy/core-auth` | `1A.1`, `1A.2`, `1A.4`, `1B.1`, `1B.2` | Middleware, DI, error format, EF Core/migration, JWT/resource authorization |
+| Thanh — Cache & Query | `thanh/cache-query` | `1A.3`, `2.2`, `2.7`, `2.8`, `3.1` | Controller/Minimal API, Docker, observability, tài liệu, Redis/query/benchmark |
+| Thuw — Queue & Background | `thuw/queue-background` | `1B.3`, `1B.4`, `2.4`, `2.9`, `3.2` | Validation, hosted service, testing, AI declaration, queue/retry/idempotency |
+| Tuyen — Realtime & Options | `tuyen/realtime-options` | `1B.5`, `2.3`, `2.5`, `2.6`, `3.3` | Options, config/secret, CI, security/CORS, SignalR/reconnect/resync |
 
-Phần `.github`, Docker, integration tests, README, React UI và minh chứng Tầng 2 là việc chung. React chỉ là lớp giao diện sử dụng REV-01/02/03, không phải chức năng nghiệp vụ thứ tư. Các file placeholder có `TODO(A/B/C/D)` để nhận biết người chủ trì.
+Mỗi người chủ trì 5 yêu cầu. `2.1 Git` là trách nhiệm chung. Với Testing và Documentation, người chủ trì dựng cấu trúc/tổng hợp; từng thành viên vẫn phải viết test và tài liệu cho module mình. React chỉ là lớp giao diện sử dụng REV-01/02/03, không phải chức năng nghiệp vụ thứ tư.
 
 ## Thứ tự ghép code để ít conflict
 

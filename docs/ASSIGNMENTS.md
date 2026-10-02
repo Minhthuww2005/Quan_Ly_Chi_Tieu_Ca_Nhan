@@ -20,13 +20,12 @@ Nhánh: `duy/core-auth`
 
 ### Phải hoàn thành
 
-- TECH-01: middleware đúng thứ tự, request ID và case cấu hình sai để demo.
-- TECH-02: đăng ký DI và giải thích lifetime.
-- TECH-03: một format lỗi `code/message/requestId`.
-- REV-01: Minimal API CRUD tại `/api/revenues`.
-- EF Core mapping và migration cho đúng tám entity đã chốt.
-- JWT, refresh token và authorization theo membership của Group.
-- IDOR: user Group A không được đọc hoặc sửa dữ liệu Group B.
+- `1A.1`: middleware đúng thứ tự và case cấu hình sai để demo.
+- `1A.2`: đăng ký DI và giải thích lifetime.
+- `1A.4`: một format lỗi `code/message/requestId`.
+- `1B.1`: EF Core mapping và migration cho đúng tám entity đã chốt.
+- `1B.2`: JWT, refresh token, authorization theo Group và IDOR test.
+- Phối hợp với Thanh ở `1A.3` bằng phần Minimal API `/api/revenues`.
 - Sau khi transaction commit, phát contract `RevenueChanged(GroupId)` cho B và D.
 
 ### Không làm
@@ -55,6 +54,11 @@ Nhánh: `thanh/cache-query`
 
 ### Phải hoàn thành
 
+- `1A.3`: chủ trì đối chứng Controller và Minimal API; Thanh làm `ReportsController`, Duy cung cấp `RevenueEndpoints`.
+- `2.2`: Docker Compose và hướng dẫn chạy lại từ máy sạch.
+- `2.7`: structured logging, RequestId, health checks và correlation log.
+- `2.8`: tổng hợp README/tài liệu; mỗi thành viên viết phần module mình.
+- `3.1`: Redis cache, query/index, invalidation và benchmark thật.
 - REV-02: `GET /api/reports/revenue` bằng Controller.
 - Filter theo thời gian và tùy chọn Wallet.
 - `groupBy` chỉ là tham số: date, wallet, category hoặc member.
@@ -88,6 +92,11 @@ Nhánh: `thuw/queue-background`
 
 ### Phải hoàn thành
 
+- `1B.3`: binding và validation dữ liệu đầu vào.
+- `1B.4`: Hosted/BackgroundService cho recurring revenue.
+- `2.4`: dựng khung unit/integration test; từng người bổ sung test module mình.
+- `2.9`: tổng hợp khai báo AI từ nội dung của cả nhóm.
+- `3.2`: queue, retry/backoff và idempotency.
 - Validation: Amount > 0, date hợp lệ, Wallet và Category cùng Group, Category là Income.
 - REV-03: một module recurring; Daily/Weekly/Monthly là enum, không phải ba chức năng.
 - `CalculateNextRunOn` hoặc phương thức tương đương.
@@ -121,6 +130,11 @@ Nhánh: `tuyen/realtime-options`
 
 ### Phải hoàn thành
 
+- `1B.5`: Options pattern cho Redis và Worker.
+- `2.3`: config theo environment, `.env.example`, secret và fail-fast.
+- `2.5`: GitHub Actions restore/build/test.
+- `2.6`: CORS và security config; Duy phối hợp Auth/IDOR policy.
+- `3.3`: SignalR room theo Group, reconnect và resync.
 - Options cho Redis và Worker; bind theo environment và fail-fast khi thiếu cấu hình quan trọng.
 - SignalR Hub authorize membership trước khi join room theo Group.
 - Chỉ broadcast sau database commit.
@@ -137,11 +151,8 @@ Nhánh: `tuyen/realtime-options`
 
 ## Việc chung của cả nhóm
 
-- TECH-04: Git flow, PR và review chéo.
-- TECH-05: Docker Compose, config/secret và khả năng chạy lại.
-- TECH-06: unit test + integration test.
-- TECH-07: structured log, health check và correlation bằng request ID.
-- TECH-08: README, tài liệu và khai báo AI.
+- `2.1`: Git flow, Pull Request và review chéo.
+- Mỗi người viết test, tài liệu và minh chứng cho module mình; Thuw và Thanh chịu trách nhiệm tổng hợp.
 - CI phải restore, build và test trước khi merge.
 
 ## Quy tắc sửa file chung

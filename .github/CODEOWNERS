@@ -16,21 +16,28 @@
 # Thanh — Report và Redis
 /src/RevenueManagement.Api/Features/Reports/                    @thanhhandsome-max
 /src/RevenueManagement.Api/Infrastructure/Caching/              @thanhhandsome-max
+/Dockerfile                                                     @thanhhandsome-max
+/docker-compose.yml                                             @thanhhandsome-max
+/README.md                                                      @thanhhandsome-max
+/docs/                                                          @thanhhandsome-max @Minhthuww2005
 
 # Thuw — Queue & Background
 /src/RevenueManagement.Api/Features/Recurring/                  @Minhthuww2005
 /src/RevenueManagement.Api/Infrastructure/Workers/              @Minhthuww2005
 /src/RevenueManagement.Api/Features/Revenues/RevenueValidator.cs @Minhthuww2005
+/tests/                                                         @Minhthuww2005 @thanhhandsome-max
+/docs/AI_USAGE.md                                               @Minhthuww2005
 
 # Tuyen — Realtime & Options (owner tạm: trưởng repo)
 /src/RevenueManagement.Api/Infrastructure/Realtime/             @Minhthuww2005
 /src/RevenueManagement.Api/Options/                             @Minhthuww2005
 /web/src/                                                       @Minhthuww2005
+/.env.example                                                   @Minhthuww2005
+/src/RevenueManagement.Api/appsettings*.json                    @Minhthuww2005
+/.github/workflows/                                             @Minhthuww2005 @thanhhandsome-max
 
 # Dashboard là điểm giao giữa Thanh và Tuyen; dòng cụ thể đặt sau để override /web/src/.
 /web/src/features/dashboard/                                    @thanhhandsome-max @Minhthuww2005
 
 # File chung cần review chéo
 /.github/                                                       @Minhthuww2005 @thanhhandsome-max
-/docs/                                                          @Minhthuww2005 @thanhhandsome-max
-/tests/                                                         @Minhthuww2005 @thanhhandsome-max
