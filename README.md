@@ -89,3 +89,5 @@ Trước khi bắt đầu code, mỗi thành viên phải đọc:
 - [Quy trình nhóm](docs/TEAM_WORKFLOW.md)
 
 Xem thêm [sơ đồ kiến trúc](docs/ARCHITECTURE.md) và [khai báo AI](docs/AI_USAGE.md).
+
+Phần REV-02 trên nhánh Thanh có hướng dẫn riêng tại [Cache & Query](docs/CACHE_QUERY.md), gồm route, Redis TTL/HIT/MISS, contract invalidation và cách thu benchmark thật.

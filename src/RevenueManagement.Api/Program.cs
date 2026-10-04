@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using RevenueManagement.Api.Features.Reports;
 using RevenueManagement.Api.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -11,6 +12,9 @@ if (string.IsNullOrWhiteSpace(databaseConnection))
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(databaseConnection, npgsql => npgsql.EnableRetryOnFailure()));
+builder.Services.AddControllers();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddRevenueReports(builder.Configuration, databaseConnection);
 
 // TODO(A): đăng ký middleware, auth và các feature services tại đây.
 
@@ -32,6 +36,7 @@ app.MapGet("/health/database", async (AppDbContext db, CancellationToken cancell
         return Results.Json(new { status = "Unhealthy", database = "Neon PostgreSQL" }, statusCode: 503);
     }
 });
+app.MapControllers();
 app.Run();
 
 public partial class Program { }
