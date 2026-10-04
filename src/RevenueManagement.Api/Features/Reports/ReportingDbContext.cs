@@ -33,7 +33,12 @@ public sealed class ReportingDbContext(DbContextOptions<ReportingDbContext> opti
             entity.Property(item => item.CategoryId).HasColumnName("category_id");
             entity.Property(item => item.CreatedByUserId).HasColumnName("created_by_user_id");
             entity.Property(item => item.Amount).HasColumnName("amount").HasPrecision(19, 4);
-            entity.Property(item => item.Kind).HasColumnName("kind").HasConversion<short>();
+            // Database constraint uses 1=Income, 2=Expense while the shared enum currently starts at 0.
+            entity.Property(item => item.Kind)
+                .HasColumnName("kind")
+                .HasConversion(
+                    value => (short)((int)value + 1),
+                    value => (TransactionKind)(value - 1));
             entity.Property(item => item.OccurredOn).HasColumnName("occurred_on");
             entity.Property(item => item.IsDeleted).HasColumnName("is_deleted");
             entity.HasIndex(item => new { item.WalletId, item.OccurredOn });
