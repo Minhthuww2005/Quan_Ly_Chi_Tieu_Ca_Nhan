@@ -33,6 +33,9 @@ Authorization: Bearer <JWT>
 ```
 
 Header phản hồi `X-Report-Cache` là `MISS` ở lần đầu và `HIT` ở lần sau khi cùng bộ lọc. TTL lấy từ `Redis:ReportTtlSeconds`.
+Header `X-Database-Query-Count` cho biết số truy vấn PostgreSQL của request. `X-Request-ID` dùng để đối chiếu request với structured log.
+
+Health check Redis thật tại `GET /health/redis`. Endpoint chỉ trả `Healthy` sau khi ghi, đọc và xóa thành công một key ngắn hạn trên Redis.
 
 ## Contract invalidation cho Revenue CRUD
 
@@ -64,4 +67,15 @@ Chỉ ghi số sau khi database đã có dữ liệu kiểm thử và Redis đan
 4. Lưu average, P95, số truy vấn database và số mẫu.
 5. Sửa một Revenue, commit, gọi invalidation và chứng minh lần kế tiếp quay lại `MISS`.
 
-Repo không chứa số benchmark dựng sẵn vì workbook yêu cầu phép đo thật.
+## Kết quả benchmark thật
+
+Đo ngày 04/10/2026 trên Neon PostgreSQL production branch và Redis 7.0.15 local, dữ liệu seed 15 dòng mỗi bảng. Bộ lọc report theo category trong khoảng 01/09/2026–31/10/2026.
+
+| Trạng thái | Số mẫu | Average | P95 | PostgreSQL query/request |
+|---|---:|---:|---:|---:|
+| Cache MISS | 10 | 725.76 ms | 984.78 ms | 3 |
+| Cache HIT | 30 | 232.94 ms | 241.71 ms | 1 |
+
+Số trên được xuất trực tiếp bởi `Benchmark_ReportsRealAverageP95AndQueryCount`; không phải số giả. Kết quả phụ thuộc mạng và trạng thái Neon nên có thể thay đổi khi chạy lại.
+
+Integration test `Report_UsesNeonAndRedis_WithRealInvalidation` đã chứng minh chuỗi `MISS → HIT → invalidate → MISS`, tổng doanh thu đọc từ Neon lớn hơn 0 và kết quả trước/sau cache giống nhau.

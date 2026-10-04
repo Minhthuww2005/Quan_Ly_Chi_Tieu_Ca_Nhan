@@ -30,6 +30,7 @@ public static class ReportsDependencyInjection
         services.AddSingleton<IRevenueReportCache, RedisCacheService>();
         services.AddSingleton<IRevenueReportCacheInvalidator>(provider =>
             (RedisCacheService)provider.GetRequiredService<IRevenueReportCache>());
+        services.AddHealthChecks().AddCheck<RedisHealthCheck>("redis");
         services.AddScoped<IReportCurrentUser, HttpReportCurrentUser>();
         services.AddScoped<StatisticsQueryService>();
         return services;

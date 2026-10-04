@@ -24,6 +24,7 @@ public sealed class ReportsController(
         {
             var result = await statistics.GetRevenueAsync(userId, request, cancellationToken);
             Response.Headers["X-Report-Cache"] = result.CacheHit ? "HIT" : "MISS";
+            Response.Headers["X-Database-Query-Count"] = result.DatabaseQueryCount.ToString();
             return Ok(result.Report);
         }
         catch (ReportValidationException exception)

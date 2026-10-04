@@ -32,4 +32,7 @@ public sealed record RevenueBreakdownResponse(
     string Label,
     decimal Revenue);
 
-public sealed record RevenueReportResult(RevenueReportResponse Report, bool CacheHit);
+public sealed record RevenueReportResult(
+    RevenueReportResponse Report,
+    bool CacheHit,
+    int DatabaseQueryCount);

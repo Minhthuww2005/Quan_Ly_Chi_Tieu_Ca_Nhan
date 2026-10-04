@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using RevenueManagement.Api.Features.Reports;
 using RevenueManagement.Api.Infrastructure.Persistence;
 
@@ -21,6 +22,7 @@ builder.Services.AddRevenueReports(builder.Configuration, databaseConnection);
 var app = builder.Build();
 
 // TODO(A): cấu hình pipeline đúng thứ tự theo checklist 1A.1.
+app.UseMiddleware<ReportRequestLoggingMiddleware>();
 
 app.MapGet("/", () => "Revenue Management API skeleton");
 app.MapGet("/health/database", async (AppDbContext db, CancellationToken cancellationToken) =>
@@ -37,6 +39,7 @@ app.MapGet("/health/database", async (AppDbContext db, CancellationToken cancell
     }
 });
 app.MapControllers();
+app.MapHealthChecks("/health/redis");
 app.Run();
 
 public partial class Program { }

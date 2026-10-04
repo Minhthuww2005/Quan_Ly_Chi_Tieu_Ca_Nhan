@@ -16,7 +16,9 @@ public sealed class StatisticsQueryService(
         CancellationToken cancellationToken = default)
     {
         Validate(request);
+        var databaseQueryCount = 0;
 
+        databaseQueryCount++;
         var isMember = await database.GroupMembers
             .AsNoTracking()
             .AnyAsync(member =>
@@ -29,6 +31,7 @@ public sealed class StatisticsQueryService(
 
         if (request.WalletId is { } walletId)
         {
+            databaseQueryCount++;
             var walletBelongsToGroup = await database.Wallets
                 .AsNoTracking()
                 .AnyAsync(wallet => wallet.Id == walletId && wallet.GroupId == request.GroupId, cancellationToken);
@@ -42,7 +45,7 @@ public sealed class StatisticsQueryService(
             logger.LogInformation(
                 "Revenue report cache hit for GroupId {GroupId}, WalletId {WalletId}, From {From}, To {To}, GroupBy {GroupBy}",
                 request.GroupId, request.WalletId, request.From, request.To, request.GroupBy);
-            return new RevenueReportResult(cached, true);
+            return new RevenueReportResult(cached, true, databaseQueryCount);
         }
 
         logger.LogInformation(
@@ -62,7 +65,9 @@ public sealed class StatisticsQueryService(
         if (request.WalletId is { } selectedWalletId)
             query = query.Where(transaction => transaction.WalletId == selectedWalletId);
 
+        databaseQueryCount++;
         var total = await query.SumAsync(transaction => (decimal?)transaction.Amount, cancellationToken) ?? 0m;
+        databaseQueryCount++;
         var breakdown = await BuildBreakdownAsync(query, request.GroupBy, cancellationToken);
 
         var report = new RevenueReportResponse(
@@ -76,7 +81,7 @@ public sealed class StatisticsQueryService(
             clock.GetUtcNow());
 
         await cache.SetAsync(request, report, cancellationToken);
-        return new RevenueReportResult(report, false);
+        return new RevenueReportResult(report, false, databaseQueryCount);
     }
 
     private async Task<IReadOnlyList<RevenueBreakdownResponse>> BuildBreakdownAsync(
