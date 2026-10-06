@@ -1,6 +1,15 @@
-using RevenueManagement.Api.Common.Middleware;
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using RevenueManagement.Api.Common.Middleware;
+using RevenueManagement.Api.Domain.Entities;
+using RevenueManagement.Api.Features.Auth;
+using RevenueManagement.Api.Infrastructure.Authorization;
 using RevenueManagement.Api.Infrastructure.Persistence;
+using RevenueManagement.Api.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -27,21 +36,94 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 );
 
 // ==========================================
-// 2. DEPENDENCY INJECTION
+// 2. DEPENDENCY INJECTION & JWT AUTH
 // ==========================================
 
-// Controllers for REV-02 (Reports).
+// Controllers for REV-02 (Reports) and Auth.
 builder.Services.AddControllers();
 
 // API documentation for Minimal API and Controllers.
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Example of Dependency Injection.
-// Other services will be registered here later.
+// DI services
 builder.Services.AddSingleton<TimeProvider>(
     TimeProvider.System
 );
+
+builder.Services.AddHttpContextAccessor();
+
+builder.Services.AddScoped<CurrentUser>();
+
+builder.Services.AddScoped<
+    IAuthorizationHandler,
+    GroupAuthorizationHandler>();
+
+builder.Services.AddScoped<
+    IPasswordHasher<User>,
+    PasswordHasher<User>>();
+
+builder.Services.AddScoped<JwtTokenService>();
+
+builder.Services.AddScoped<AuthService>();
+
+// JWT Options & Authentication
+builder.Services.Configure<JwtOptions>(
+    builder.Configuration.GetSection(JwtOptions.SectionName));
+
+var jwtOptions = builder.Configuration
+    .GetSection(JwtOptions.SectionName)
+    .Get<JwtOptions>()
+    ?? throw new InvalidOperationException(
+        "Missing Jwt configuration.");
+
+if (string.IsNullOrWhiteSpace(jwtOptions.SigningKey))
+{
+    throw new InvalidOperationException(
+        "Missing Jwt:SigningKey.");
+}
+
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.MapInboundClaims = false;
+
+        options.TokenValidationParameters =
+            new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidIssuer = jwtOptions.Issuer,
+
+                ValidateAudience = true,
+                ValidAudience = jwtOptions.Audience,
+
+                ValidateLifetime = true,
+
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey =
+                    new SymmetricSecurityKey(
+                        Encoding.UTF8.GetBytes(
+                            jwtOptions.SigningKey)),
+
+                ClockSkew = TimeSpan.FromSeconds(30),
+
+                NameClaimType = "sub"
+            };
+    });
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy(
+        AuthorizationPolicies.GroupMember,
+        policy =>
+        {
+            policy.RequireAuthenticatedUser();
+
+            policy.AddRequirements(
+                new GroupMemberRequirement());
+        });
+});
 
 // ==========================================
 // 3. CORS CONFIGURATION
@@ -70,9 +152,9 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-
 app.UseMiddleware<RequestIdMiddleware>();
 app.UseMiddleware<ExceptionMiddleware>();
+
 // ==========================================
 // 5. MIDDLEWARE PIPELINE
 // ==========================================
@@ -88,16 +170,60 @@ app.UseRouting();
 
 app.UseCors(frontendCorsPolicy);
 
-// TODO(A): Add global exception middleware.
-// TODO(A): Add JWT authentication.
-// TODO(A): Add resource authorization.
+app.UseAuthentication();
+app.UseAuthorization();
 
 // ==========================================
 // 6. MAP ENDPOINTS
 // ==========================================
 
-// Report Controllers (REV-02).
+// Report Controllers (REV-02) and Auth Controllers.
 app.MapControllers();
+
+// Test Group Authorization & IDOR endpoint.
+app.MapGet(
+    "/api/auth-test/groups/{groupId:long}",
+    async (
+        long groupId,
+        HttpContext httpContext,
+        IAuthorizationService authorizationService) =>
+    {
+        var result =
+            await authorizationService.AuthorizeAsync(
+                httpContext.User,
+                groupId,
+                AuthorizationPolicies.GroupMember);
+
+        if (!result.Succeeded)
+        {
+            return Results.Forbid();
+        }
+
+        return Results.Ok(new
+        {
+            message = "You can access this group.",
+            groupId
+        });
+    })
+    .RequireAuthorization();
+
+// Test JWT Auth endpoints.
+app.MapGet("/api/auth-test/public", () =>
+{
+    return Results.Ok(new
+    {
+        message = "Public endpoint"
+    });
+});
+
+app.MapGet("/api/auth-test/private", () =>
+{
+    return Results.Ok(new
+    {
+        message = "Authenticated endpoint"
+    });
+})
+.RequireAuthorization();
 
 // Test API + DI.
 app.MapGet("/api/ping", (TimeProvider clock) =>
@@ -112,7 +238,6 @@ app.MapGet("/api/ping", (TimeProvider clock) =>
 .WithTags("System");
 
 // Simple application health check.
-// This endpoint does not verify database connectivity.
 app.MapGet("/health", () =>
 {
     return Results.Ok(new
