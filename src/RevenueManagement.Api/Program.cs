@@ -7,6 +7,7 @@ using Microsoft.IdentityModel.Tokens;
 using RevenueManagement.Api.Common.Middleware;
 using RevenueManagement.Api.Domain.Entities;
 using RevenueManagement.Api.Features.Auth;
+using RevenueManagement.Api.Features.Recurring;
 using RevenueManagement.Api.Infrastructure.Authorization;
 using RevenueManagement.Api.Infrastructure.Persistence;
 using RevenueManagement.Api.Options;
@@ -66,6 +67,9 @@ builder.Services.AddScoped<
 builder.Services.AddScoped<JwtTokenService>();
 
 builder.Services.AddScoped<AuthService>();
+
+// REV-03: recurring rules, Channel queue, scanner/worker (owner: C).
+builder.Services.AddRecurringRevenue(builder.Configuration);
 
 // JWT Options & Authentication
 builder.Services.Configure<JwtOptions>(
