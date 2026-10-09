@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using RevenueManagement.Api.Infrastructure.Persistence;
+using RevenueManagement.Api.Infrastructure.Realtime;
 using RevenueManagement.Api.Options;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -15,6 +16,9 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 // Cấu hình Options Pattern và ValidateOnStart cho JwtOptions, RedisOptions, WorkerOptions.
 builder.Services.AddAppOptions(builder.Configuration);
+
+// Cấu hình SignalR Hub và Publisher cho thông báo thời gian thực
+builder.Services.AddRealtimeServices();
 
 // TODO(A): đăng ký middleware, auth và các feature services tại đây.
 
@@ -36,6 +40,10 @@ app.MapGet("/health/database", async (AppDbContext db, CancellationToken cancell
         return Results.Json(new { status = "Unhealthy", database = "Neon PostgreSQL" }, statusCode: 503);
     }
 });
+
+// Ánh xạ SignalR Hub
+app.MapHub<DashboardHub>("/hubs/revenue");
+
 app.Run();
 
 public partial class Program { }
