@@ -14,10 +14,10 @@ public sealed class RevenueReportIntegrationTests(ITestOutputHelper output)
     public async Task Report_UsesNeonAndRedis_WithRealInvalidation()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        var databaseConnection = Environment.GetEnvironmentVariable("ConnectionStrings__Database");
+        var databaseConnection = Environment.GetEnvironmentVariable("REVENUEFLOW_TEST_DATABASE");
         var redisConnection = Environment.GetEnvironmentVariable("Redis__ConnectionString");
         if (string.IsNullOrWhiteSpace(databaseConnection) || string.IsNullOrWhiteSpace(redisConnection))
-            return;
+            Assert.Skip("Requires REVENUEFLOW_TEST_DATABASE and Redis__ConnectionString for an isolated test database.");
 
         await using var provider = CreateProvider(databaseConnection, redisConnection);
         await using var scope = provider.CreateAsyncScope();
@@ -53,10 +53,10 @@ public sealed class RevenueReportIntegrationTests(ITestOutputHelper output)
     public async Task Benchmark_ReportsRealAverageP95AndQueryCount()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        var databaseConnection = Environment.GetEnvironmentVariable("ConnectionStrings__Database");
+        var databaseConnection = Environment.GetEnvironmentVariable("REVENUEFLOW_TEST_DATABASE");
         var redisConnection = Environment.GetEnvironmentVariable("Redis__ConnectionString");
         if (string.IsNullOrWhiteSpace(databaseConnection) || string.IsNullOrWhiteSpace(redisConnection))
-            return;
+            Assert.Skip("Requires REVENUEFLOW_TEST_DATABASE and Redis__ConnectionString for an isolated test database.");
 
         await using var provider = CreateProvider(databaseConnection, redisConnection);
         await using var scope = provider.CreateAsyncScope();

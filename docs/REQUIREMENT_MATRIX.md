@@ -5,7 +5,7 @@
 | 1A.1 | Middleware pipeline | Duy | `Program.cs`, `Common/Middleware` |
 | 1A.2 | DI và lifetime | Duy | `Program.cs`, extension DI sẽ tạo |
 | 1A.3 | Controller + Minimal API | Thanh, Duy phối hợp | `ReportsController`, `RevenueEndpoints` |
-| 1A.4 | Error và HTTP status | Duy | `GlobalExceptionMiddleware`, `ErrorResponse` |
+| 1A.4 | Error và HTTP status | Duy | `ExceptionMiddleware`, `ErrorContractMiddleware`, `ErrorResponse` |
 | 1B.1 | EF Core + migration | Duy | `Infrastructure/Persistence` |
 | 1B.2 | AuthN/AuthZ | Duy | `Features/Auth`, `Infrastructure/Authorization` |
 | 1B.3 | Binding và validation | Thuw | `RevenueValidator`, DTOs |

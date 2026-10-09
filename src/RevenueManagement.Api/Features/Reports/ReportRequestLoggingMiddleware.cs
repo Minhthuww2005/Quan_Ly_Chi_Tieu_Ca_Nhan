@@ -8,15 +8,7 @@ public sealed class ReportRequestLoggingMiddleware(
 {
     public async Task InvokeAsync(HttpContext context)
     {
-        if (!context.Request.Path.StartsWithSegments("/api/reports"))
-        {
-            await next(context);
-            return;
-        }
-
-        var requestId = context.Request.Headers["X-Request-ID"].FirstOrDefault();
-        if (string.IsNullOrWhiteSpace(requestId))
-            requestId = Guid.NewGuid().ToString("N");
+        var requestId = context.TraceIdentifier;
 
         context.TraceIdentifier = requestId;
         context.Response.Headers["X-Request-ID"] = requestId;

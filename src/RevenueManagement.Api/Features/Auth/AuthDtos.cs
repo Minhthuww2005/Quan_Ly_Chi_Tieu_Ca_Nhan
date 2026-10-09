@@ -1,11 +1,12 @@
+using System.ComponentModel.DataAnnotations;
 namespace RevenueManagement.Api.Features.Auth;
 
 public sealed record LoginRequest(
-    string Email,
-    string Password);
+    [Required, EmailAddress] string Email,
+    [Required, StringLength(200, MinimumLength = 8)] string Password);
 
 public sealed record RefreshTokenRequest(
-    string RefreshToken);
+    [Required] string RefreshToken);
 
 public sealed record TokenResponse(
     string AccessToken,

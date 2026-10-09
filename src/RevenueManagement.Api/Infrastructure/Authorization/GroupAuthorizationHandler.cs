@@ -23,7 +23,8 @@ public sealed class GroupAuthorizationHandler
         GroupMemberRequirement requirement,
         long groupId)
     {
-        var userId = _currentUser.UserId;
+        var subject = context.User.FindFirst("sub")?.Value;
+        long? userId = long.TryParse(subject, out var id) ? id : null;
 
         if (userId is null)
         {
@@ -35,7 +36,7 @@ public sealed class GroupAuthorizationHandler
             .AnyAsync(x =>
                 x.GroupId == groupId &&
                 x.UserId == userId.Value &&
-                x.LeftAt == null);
+                x.LeftAt == null && !x.Group.IsDeleted);
 
         if (isMember)
         {

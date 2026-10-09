@@ -1,4 +1,7 @@
 using RevenueManagement.Api.Features.Reports;
+using RevenueManagement.Api.Features.Revenues;
+using RevenueManagement.Api.Infrastructure.Workers;
+using RevenueManagement.Api.Common.Models;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -49,9 +52,6 @@ builder.Services.AddAppOptions(builder.Configuration);
 
 // Cấu hình SignalR Hub và Publisher cho thông báo thời gian thực
 builder.Services.AddRealtimeServices();
-
-// TODO(A): đăng ký middleware, auth và các feature services tại đây.
-
 
 // Controllers for REV-02 (Reports) and Auth.
 builder.Services.AddControllers();
@@ -105,6 +105,21 @@ builder.Services
     .AddJwtBearer(options =>
     {
         options.MapInboundClaims = false;
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                if (context.Request.Path.StartsWithSegments("/hubs/revenue"))
+                    context.Token = context.Request.Query["access_token"];
+                return Task.CompletedTask;
+            },
+            OnTokenValidated = context =>
+            {
+                if (!long.TryParse(context.Principal?.FindFirst("sub")?.Value, out var id) || id <= 0)
+                    context.Fail("Invalid subject.");
+                return Task.CompletedTask;
+            }
+        };
 
         options.TokenValidationParameters =
             new TokenValidationParameters
@@ -168,9 +183,22 @@ builder.Services.AddCors(options =>
 // ==========================================
 
 builder.Services.AddRevenueReports(builder.Configuration, databaseConnection);
+builder.Services.AddScoped<RevenueService>();
+builder.Services.AddSingleton<SignalRRevenueChangedPublisher>();
+builder.Services.AddSingleton<IRevenueChangedPublisher, RevenueChangedPublisher>();
+builder.Logging.AddJsonConsole();
 var app = builder.Build();
 
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    context.Response.Headers["X-Frame-Options"] = "DENY";
+    context.Response.Headers["Referrer-Policy"] = "no-referrer";
+    await next();
+});
+
 app.UseMiddleware<RequestIdMiddleware>();
+app.UseMiddleware<ErrorContractMiddleware>();
 app.UseMiddleware<ExceptionMiddleware>();
 app.UseMiddleware<ReportRequestLoggingMiddleware>();
 
@@ -198,6 +226,18 @@ app.UseAuthorization();
 
 // Report Controllers (REV-02) and Auth Controllers.
 app.MapControllers();
+app.MapRevenueEndpoints();
+app.MapGet("/api/context", async (AppDbContext db, CurrentUser user, CancellationToken ct) =>
+{
+    var groups = await db.GroupMembers.AsNoTracking().Where(m => m.UserId == user.UserId && m.LeftAt == null && !m.Group.IsDeleted)
+        .Select(m => new { m.GroupId, m.Group.Name }).ToListAsync(ct);
+    var wallets = await db.Wallets.AsNoTracking().Where(w => !w.IsArchived && !w.Group.IsDeleted && w.Group.Members.Any(m => m.UserId == user.UserId && m.LeftAt == null))
+        .Select(w => new { w.Id, w.GroupId, w.Name }).ToListAsync(ct);
+    var ids = wallets.Select(w => w.Id).ToArray();
+    var categories = await db.Categories.AsNoTracking().Where(c => ids.Contains(c.WalletId) && !c.IsArchived && c.Kind == RevenueManagement.Api.Domain.Enums.TransactionKind.Income)
+        .Select(c => new { c.Id, c.WalletId, c.Name }).ToListAsync(ct);
+    return Results.Ok(new { groups, wallets, categories });
+}).RequireAuthorization();
 
 // Test Group Authorization & IDOR endpoint.
 app.MapGet(
@@ -257,13 +297,17 @@ app.MapGet("/api/ping", (TimeProvider clock) =>
 .WithTags("System");
 
 // Simple application health check.
-app.MapGet("/health", () =>
+app.MapGet("/health", async (AppDbContext db, Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckService health, CancellationToken ct) =>
 {
-    return Results.Ok(new
+    bool database;
+    try { database = await db.Database.CanConnectAsync(ct); } catch { database = false; }
+    var redis = await health.CheckHealthAsync(ct);
+    var healthy = database && redis.Status == Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Healthy;
+    return Results.Json(new
     {
-        status = "Healthy",
-        service = "RevenueManagement.Api"
-    });
+        status = healthy ? "Healthy" : "Unhealthy",
+        database = database ? "Healthy" : "Unhealthy", redis = redis.Status.ToString()
+    }, statusCode: healthy ? 200 : 503);
 })
 .WithTags("Health");
 
@@ -282,7 +326,7 @@ app.MapGet(
                 return Results.Ok(new
                 {
                     status = "Healthy",
-                    database = "Neon PostgreSQL"
+                    database = "PostgreSQL"
                 });
             }
 
@@ -290,7 +334,7 @@ app.MapGet(
                 new
                 {
                     status = "Unhealthy",
-                    database = "Neon PostgreSQL"
+                    database = "PostgreSQL"
                 },
                 statusCode: 503
             );
@@ -301,7 +345,7 @@ app.MapGet(
                 new
                 {
                     status = "Unhealthy",
-                    database = "Neon PostgreSQL"
+                    database = "PostgreSQL"
                 },
                 statusCode: 503
             );
@@ -318,6 +362,12 @@ app.MapHealthChecks("/health/redis");
 
 // Ánh xạ SignalR Hub
 app.MapHub<DashboardHub>("/hubs/revenue");
+
+if (app.Environment.IsDevelopment() && builder.Configuration.GetValue<bool>("Database:InitializeDemo"))
+{
+    await using var scope = app.Services.CreateAsyncScope();
+    await DemoSeeder.InitializeAsync(scope.ServiceProvider);
+}
 
 
 app.Run();

@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using RevenueManagement.Api.Infrastructure.Realtime;
@@ -68,7 +69,9 @@ public sealed class RealtimePublisherTests
             .Setup(c => c.User)
             .Returns(principal);
 
-        var hub = new DashboardHub
+        var auth = new Mock<IAuthorizationService>();
+        auth.Setup(a => a.AuthorizeAsync(principal, groupId, It.IsAny<string>())).ReturnsAsync(AuthorizationResult.Success());
+        var hub = new DashboardHub(auth.Object)
         {
             Groups = groupsMock.Object,
             Context = callerContextMock.Object
@@ -97,7 +100,7 @@ public sealed class RealtimePublisherTests
             .Setup(c => c.ConnectionId)
             .Returns(connectionId);
 
-        var hub = new DashboardHub
+        var hub = new DashboardHub(Mock.Of<IAuthorizationService>())
         {
             Groups = groupsMock.Object,
             Context = callerContextMock.Object
@@ -110,6 +113,20 @@ public sealed class RealtimePublisherTests
         groupsMock.Verify(
             g => g.RemoveFromGroupAsync(connectionId, $"group-{groupId}", default),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task JoinGroup_DeniesOutsiderWithoutAddingConnection()
+    {
+        var principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", "3")], "TestAuth"));
+        var context = new Mock<HubCallerContext>();
+        context.Setup(c => c.User).Returns(principal);
+        var groups = new Mock<IGroupManager>();
+        var auth = new Mock<IAuthorizationService>();
+        auth.Setup(a => a.AuthorizeAsync(principal, 10L, It.IsAny<string>())).ReturnsAsync(AuthorizationResult.Failed());
+        var hub = new DashboardHub(auth.Object) { Context = context.Object, Groups = groups.Object };
+        await Assert.ThrowsAsync<HubException>(() => hub.JoinGroup(10));
+        groups.Verify(g => g.AddToGroupAsync(It.IsAny<string>(),It.IsAny<string>(),It.IsAny<CancellationToken>()),Times.Never);
     }
 
     [Fact]

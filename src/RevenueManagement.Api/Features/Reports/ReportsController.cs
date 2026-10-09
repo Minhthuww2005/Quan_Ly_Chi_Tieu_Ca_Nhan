@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 
 namespace RevenueManagement.Api.Features.Reports;
 
 [ApiController]
+[Authorize]
 [Route("api/reports")]
 public sealed class ReportsController(
     StatisticsQueryService statistics,

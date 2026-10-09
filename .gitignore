@@ -8,4 +8,11 @@
 .idea/
 TestResults/
 dump.rdb
+docs/reference_pdf_pages/
+docs/architecture_render/
+docs/test-results/
+docs/evidence/
+docs/demo-api.log
 
+/.pnpm-store/
+*.tsbuildinfo

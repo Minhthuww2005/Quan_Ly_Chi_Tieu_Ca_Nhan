@@ -13,6 +13,7 @@ public sealed class ReportingDbContext(DbContextOptions<ReportingDbContext> opti
     public DbSet<ReportWallet> Wallets => Set<ReportWallet>();
     public DbSet<ReportCategory> Categories => Set<ReportCategory>();
     public DbSet<ReportGroupMember> GroupMembers => Set<ReportGroupMember>();
+    public DbSet<ReportGroup> Groups => Set<ReportGroup>();
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess) =>
         throw new NotSupportedException("ReportingDbContext chỉ dùng để đọc.");
@@ -24,6 +25,13 @@ public sealed class ReportingDbContext(DbContextOptions<ReportingDbContext> opti
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<ReportGroup>(entity =>
+        {
+            entity.ToTable("groups");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Id).HasColumnName("id");
+            entity.Property(item => item.IsDeleted).HasColumnName("is_deleted");
+        });
         modelBuilder.Entity<ReportTransaction>(entity =>
         {
             entity.ToTable("transactions");
@@ -33,12 +41,12 @@ public sealed class ReportingDbContext(DbContextOptions<ReportingDbContext> opti
             entity.Property(item => item.CategoryId).HasColumnName("category_id");
             entity.Property(item => item.CreatedByUserId).HasColumnName("created_by_user_id");
             entity.Property(item => item.Amount).HasColumnName("amount").HasPrecision(19, 4);
-            // Database constraint uses 1=Income, 2=Expense while the shared enum currently starts at 0.
+            // Shared enum and database constraint both use 1=Income, 2=Expense.
             entity.Property(item => item.Kind)
                 .HasColumnName("kind")
                 .HasConversion(
-                    value => (short)((int)value + 1),
-                    value => (TransactionKind)(value - 1));
+                    value => (short)value,
+                    value => (TransactionKind)value);
             entity.Property(item => item.OccurredOn).HasColumnName("occurred_on");
             entity.Property(item => item.IsDeleted).HasColumnName("is_deleted");
             entity.HasIndex(item => new { item.WalletId, item.OccurredOn });
@@ -108,4 +116,10 @@ public sealed class ReportGroupMember
     public long GroupId { get; init; }
     public long UserId { get; init; }
     public DateTime? LeftAt { get; init; }
+}
+
+public sealed class ReportGroup
+{
+    public long Id { get; init; }
+    public bool IsDeleted { get; init; }
 }

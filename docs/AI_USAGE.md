@@ -4,6 +4,8 @@ AI được dùng để gợi ý cấu trúc project, boilerplate, test và tài
 
 ## Chi tiết theo module
 
+Trong lần tích hợp này, OpenAI Codex hỗ trợ resolve merge bốn nhánh, hoàn thiện REV-01 và giao diện demo, hợp nhất lỗi HTTP và publisher cache/SignalR, kiểm tra refresh đồng thời, viết script demo và integration test. Codex chạy build/test local; chưa xác nhận thành viên đã review. Owner trong bảng phân công được giữ nguyên.
+
 Mỗi thành viên bổ sung một mục cho module mình theo mẫu dưới đây. Thuw tổng hợp (2.9).
 
 | Module | Người phụ trách | Công cụ AI | AI hỗ trợ phần nào | Người đã review/sửa/kiểm chứng |

@@ -3,12 +3,42 @@ on: [push, pull_request]
 jobs:
   build-test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: revenueflow_demo
+          POSTGRES_USER: revenueflow
+          POSTGRES_PASSWORD: ci-test-password
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U revenueflow -d revenueflow_demo" --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__Database: Host=localhost;Port=5432;Database=revenueflow_demo;Username=revenueflow;Password=ci-test-password
+      REVENUEFLOW_TEST_DATABASE: Host=localhost;Port=5432;Database=revenueflow_demo;Username=revenueflow;Password=ci-test-password
+      REVENUEFLOW_TEST_API: http://localhost:5080
+      Redis__ConnectionString: localhost:6379
+      Jwt__SigningKey: ci-only-signing-key-at-least-thirty-two-characters
+      Database__InitializeDemo: 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with: { dotnet-version: 10.0.x }
       - run: dotnet restore RevenueManagement.slnx
       - run: dotnet build RevenueManagement.slnx --no-restore --configuration Release
+      - name: Start isolated demo API
+        run: |
+          dotnet src/RevenueManagement.Api/bin/Release/net10.0/RevenueManagement.Api.dll --contentRoot "$PWD/src/RevenueManagement.Api" --urls http://localhost:5080 > /tmp/revenueflow-api.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://localhost:5080/health; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/revenueflow-api.log
+          exit 1
       - run: dotnet test RevenueManagement.slnx --no-build --configuration Release
   web:
     runs-on: ubuntu-latest
@@ -16,7 +46,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with: { version: 10 }
+        with: { version: 11.25.0 }
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm, cache-dependency-path: web/pnpm-lock.yaml }
       - run: pnpm install --frozen-lockfile

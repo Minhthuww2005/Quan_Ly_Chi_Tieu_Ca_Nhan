@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Caching.Distributed;
 using RevenueManagement.Api.Features.Reports;
 
@@ -27,12 +28,16 @@ public sealed class RedisCacheService(
     ILogger<RedisCacheService> logger) : IRevenueReportCache, IRevenueReportCacheInvalidator
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private sealed record ReadKey(string Value);
+    private readonly ConditionalWeakTable<RevenueReportRequest, ReadKey> _readKeys = new();
 
     public async Task<RevenueReportResponse?> GetAsync(
         RevenueReportRequest request,
         CancellationToken cancellationToken = default)
     {
         var key = await CreateVersionedKeyAsync(request, cancellationToken);
+        _readKeys.Remove(request);
+        _readKeys.Add(request, new ReadKey(key));
         var json = await cache.GetStringAsync(key, cancellationToken);
         return json is null ? null : JsonSerializer.Deserialize<RevenueReportResponse>(json, JsonOptions);
     }
@@ -42,7 +47,10 @@ public sealed class RedisCacheService(
         RevenueReportResponse report,
         CancellationToken cancellationToken = default)
     {
-        var key = await CreateVersionedKeyAsync(request, cancellationToken);
+        // Store under the generation used before querying SQL. If a write invalidates
+        // meanwhile, this older snapshot cannot populate the new generation.
+        var key = _readKeys.TryGetValue(request, out var readKey) ? readKey.Value
+            : await CreateVersionedKeyAsync(request, cancellationToken);
         var json = JsonSerializer.Serialize(report, JsonOptions);
         await cache.SetStringAsync(
             key,
@@ -79,11 +87,6 @@ public sealed class RedisCacheService(
         if (version is null)
         {
             version = "1";
-            await cache.SetStringAsync(
-                versionKey,
-                version,
-                new DistributedCacheEntryOptions { SlidingExpiration = TimeSpan.FromDays(30) },
-                cancellationToken);
         }
 
         return CreateKey(request, version);

@@ -24,7 +24,8 @@ public sealed class StatisticsQueryService(
             .AnyAsync(member =>
                 member.GroupId == request.GroupId &&
                 member.UserId == userId &&
-                member.LeftAt == null,
+                member.LeftAt == null &&
+                database.Groups.Any(group => group.Id == member.GroupId && !group.IsDeleted),
                 cancellationToken);
         if (!isMember)
             throw new ReportAccessDeniedException();

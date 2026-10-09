@@ -5,10 +5,33 @@ services:
     environment:
       ASPNETCORE_URLS: http://+:8080
       ASPNETCORE_ENVIRONMENT: Development
-      ConnectionStrings__Database: ${ConnectionStrings__Database}
+      ConnectionStrings__Database: Host=postgres;Port=5432;Database=revenueflow_demo;Username=revenueflow;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       Redis__ConnectionString: redis:6379
       Jwt__SigningKey: ${JWT_SIGNING_KEY}
-    depends_on: [redis]
+      Database__InitializeDemo: 'true'
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+  postgres:
+    image: postgres:17-alpine
+    ports: ["55432:5432"]
+    environment:
+      POSTGRES_DB: revenueflow_demo
+      POSTGRES_USER: revenueflow
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes: ["revenueflow_demo_data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U revenueflow -d revenueflow_demo"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
   redis:
     image: redis:7-alpine
     ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+volumes:
+  revenueflow_demo_data:

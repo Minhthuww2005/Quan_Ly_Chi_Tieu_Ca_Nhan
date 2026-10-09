@@ -170,6 +170,13 @@ public sealed class AuthService
                 await _db.Database.BeginTransactionAsync(
                     cancellationToken);
 
+            // Atomically consume the old token so simultaneous requests cannot
+            // both issue a replacement. A failed save rolls back this update.
+            var consumed = await _db.RefreshTokens
+                .Where(x => x.Id == currentToken.Id && x.RevokedAt == null && x.ExpiresAt > now.UtcDateTime)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.RevokedAt, now.UtcDateTime), cancellationToken);
+            if (consumed != 1) return null;
+
             _db.RefreshTokens.Add(
                 replacementToken);
 

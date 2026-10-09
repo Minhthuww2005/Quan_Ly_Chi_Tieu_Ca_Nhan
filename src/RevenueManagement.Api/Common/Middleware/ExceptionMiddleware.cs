@@ -1,5 +1,7 @@
 using System.Text.Json;
 using RevenueManagement.Api.Common.Models;
+using RevenueManagement.Api.Common.Exceptions;
+using Microsoft.EntityFrameworkCore;
 
 namespace RevenueManagement.Api.Common.Middleware;
 
@@ -40,8 +42,9 @@ public sealed class ExceptionMiddleware
 
             context.Response.Clear();
 
-            context.Response.StatusCode =
-                StatusCodes.Status500InternalServerError;
+            var status = ex switch { AppException e => e.StatusCode, DbUpdateConcurrencyException => 409,
+                BadHttpRequestException => 400, _ => 500 };
+            context.Response.StatusCode = status;
 
             context.Response.ContentType =
                 "application/json; charset=utf-8";
@@ -51,8 +54,9 @@ public sealed class ExceptionMiddleware
 
             var errorResponse = new ErrorResponse
             {
-                StatusCode = StatusCodes.Status500InternalServerError,
-                Message = "An unexpected error occurred.",
+                StatusCode = status,
+                Code = ex is AppException appError ? appError.Code : status == 409 ? "concurrency_conflict" : status == 400 ? "invalid_request" : "internal_error",
+                Message = ex is AppException ? ex.Message : status == 409 ? "Dữ liệu đã thay đổi. Hãy tải lại." : status == 400 ? "Dữ liệu yêu cầu không hợp lệ." : "An unexpected error occurred.",
                 RequestId = requestId,
                 Timestamp = DateTime.UtcNow
             };
