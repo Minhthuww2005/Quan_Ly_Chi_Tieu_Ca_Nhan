@@ -11,6 +11,9 @@ using RevenueManagement.Api.Features.Auth;
 using RevenueManagement.Api.Features.Recurring;
 using RevenueManagement.Api.Infrastructure.Authorization;
 using RevenueManagement.Api.Infrastructure.Persistence;
+
+using RevenueManagement.Api.Infrastructure.Realtime;
+
 using RevenueManagement.Api.Options;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -40,6 +43,15 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 // ==========================================
 // 2. DEPENDENCY INJECTION & JWT AUTH
 // ==========================================
+
+// Cấu hình Options Pattern và ValidateOnStart cho JwtOptions, RedisOptions, WorkerOptions.
+builder.Services.AddAppOptions(builder.Configuration);
+
+// Cấu hình SignalR Hub và Publisher cho thông báo thời gian thực
+builder.Services.AddRealtimeServices();
+
+// TODO(A): đăng ký middleware, auth và các feature services tại đây.
+
 
 // Controllers for REV-02 (Reports) and Auth.
 builder.Services.AddControllers();
@@ -303,7 +315,13 @@ app.MapGet(
 // ==========================================
 
 app.MapHealthChecks("/health/redis");
+
+// Ánh xạ SignalR Hub
+app.MapHub<DashboardHub>("/hubs/revenue");
+
+
 app.Run();
 
 // Keep this for integration testing.
 public partial class Program { }
+
