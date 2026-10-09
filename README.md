@@ -42,6 +42,73 @@ Kiểm tra dịch vụ:
 - `http://localhost:5080/health/database`: kiểm tra kết nối PostgreSQL.
 - `http://localhost:5080/health/redis`: kiểm tra ghi, đọc và xóa key trên Redis.
 
+## Nhánh `thuw/queue-background` — REV-03 Doanh thu định kỳ, Queue & Background (Thuw)
+
+Trạng thái: đã chạy với Neon PostgreSQL thật; build 0 lỗi 0 cảnh báo; unit test 91/91 pass.
+Nhánh được xây trên `duy/core-auth` (entity, `AppDbContext`, migration, JWT) vì module cần các contract đó để biên dịch.
+Tài liệu chi tiết: [docs/QUEUE_BACKGROUND.md](docs/QUEUE_BACKGROUND.md).
+
+### Yêu cầu đã làm
+
+| Mã | Nội dung | Vị trí |
+|---|---|---|
+| 1B.3 | Binding + validation: DataAnnotations, `IValidatableObject`, `RevenueValidator` dùng chung với REV-01 (Amount > 0, ngày hợp lệ, Wallet/Category cùng Group, Category là Income, user là thành viên) | `Features/Recurring/RecurringRuleDtos.cs`, `RecurringRuleRequestValidator.cs`, `Features/Revenues/RevenueValidator.cs` |
+| 1B.4 | `BackgroundService` quét quy tắc đến hạn theo múi giờ của quy tắc, graceful cancellation | `Infrastructure/Workers/RecurringRuleScanner.cs`, `RecurringRevenueWorker.cs` |
+| 3.2 | Queue `Channel<T>` bounded, retry exponential backoff + jitter, idempotency `(RuleId, OccurrenceDate)` + `idempotency_key`, RunLog Created/Skipped/Failed | `Infrastructure/Workers/**` |
+| REV-03 | CRUD `/api/recurring-rules`, xem nhật ký chạy, trigger thủ công; `CalculateNextRunOn` cho Daily/Weekly/Monthly (một module, Frequency là tham số) | `Features/Recurring/**` |
+| 2.4 | Unit test: lịch, validation, queue/backoff, processor (chạy 2 lần = 1 transaction), service (IDOR 404, 409) | `tests/RevenueManagement.UnitTests/**` |
+| 2.9 | Mẫu khai báo AI theo module | `docs/AI_USAGE.md` |
+
+### API
+
+| Method | Route | Mô tả |
+|---|---|---|
+| GET | `/api/recurring-rules?walletId=` | Danh sách quy tắc trong các nhóm user là thành viên |
+| GET | `/api/recurring-rules/{id}` | Chi tiết |
+| POST | `/api/recurring-rules` | Tạo (201 / 400 / 404) |
+| PUT | `/api/recurring-rules/{id}` | Sửa, cần `rowVersion` (409 nếu lệch) |
+| PATCH | `/api/recurring-rules/{id}/active` | Bật/tắt; bật lại thì chạy từ hôm nay, không chạy bù |
+| DELETE | `/api/recurring-rules/{id}` | Chỉ xóa được khi chưa có nhật ký (409 → hãy tắt) |
+| GET | `/api/recurring-rules/{id}/runs?status=&from=&to=&limit=` | Nhật ký Created/Skipped/Failed |
+| POST | `/api/recurring-rules/{id}/trigger` | Đưa vào hàng đợi ngay (202) — dùng khi demo |
+
+Tất cả yêu cầu JWT. Quy tắc của nhóm khác luôn trả 404.
+
+### Chạy local
+
+```powershell
+# Một lần: cấu hình secret (không commit vào Git)
+dotnet user-secrets set "ConnectionStrings:Database" "Host=...;Port=5432;Database=neondb;Username=...;Password=...;SSL Mode=Require;Channel Binding=Require" --project src/RevenueManagement.Api
+dotnet user-secrets set "Jwt:SigningKey" "<chuỗi ngẫu nhiên dài ít nhất 32 ký tự>" --project src/RevenueManagement.Api
+
+dotnet build RevenueManagement.slnx
+dotnet test tests/RevenueManagement.UnitTests
+dotnet run --project src/RevenueManagement.Api      # http://localhost:5080/swagger
+```
+
+> **Lưu ý:** khi app chạy, worker sẽ tạo giao dịch thật trên database Neon dùng chung cho các quy tắc đến hạn.
+> Chỉ muốn thử API mà không ghi dữ liệu: `$env:Worker__Enabled = "false"` trước khi `dotnet run`.
+
+Cấu hình section `Worker` (override bằng `Worker__<Key>`): `Enabled`, `PollIntervalSeconds`, `MaxRetryAttempts`,
+`BaseRetryDelaySeconds`, `MaxRetryDelaySeconds`, `QueueCapacity`, `ScanBatchSize`, `MaxCatchUpOccurrences`.
+Sai cấu hình thì app dừng ngay khi khởi động (`ValidateOnStart`).
+
+### Điểm tích hợp cần các thành viên khác review
+
+| File / contract | Thay đổi | Người cần biết |
+|---|---|---|
+| `Domain/Enums/TransactionKind.cs`, `RecurrenceFrequency.cs` | Đổi sang `Income = 1`, `Daily/Weekly/Monthly = 1/2/3` cho khớp CHECK constraint trên Neon (`kind IN (1,2)`, `frequency IN (1,2,3)`) | Duy (owner), Thanh |
+| `Features/Reports/ReportingDbContext.cs` (nhánh Thanh) | Khi merge phải **bỏ** conversion `+1/-1` cho `Kind`, nếu không sẽ lệch hai lần | Thanh |
+| `Program.cs` | Thêm 1 dòng `builder.Services.AddRecurringRevenue(builder.Configuration);` | Duy |
+| `Options/WorkerOptions.cs` | Điền thuộc tính + DataAnnotations cho section `Worker` | Tuyen |
+| `IRevenueChangedPublisher` | Gọi `PublishAsync(groupId)` sau commit; mặc định NoOp — B (cache) và D (SignalR) đăng ký implementation thật | Thanh, Tuyen |
+| `RevenueValidator` | `ValidateAsync(RevenueInput, userId)` để `/api/revenues` dùng lại | Duy |
+| `recurring_rules.day_of_week` | Theo ISO 1 = Thứ Hai … 7 = Chủ nhật (khớp CHECK 1..7) | Tuyen (form React) |
+| `tests/RevenueManagement.UnitTests.csproj` | Thêm `Microsoft.EntityFrameworkCore.InMemory` | Cả nhóm |
+
+## Khởi tạo Git
+
+
 ### Gọi báo cáo sau khi ghép Auth
 
 ```http
@@ -116,3 +183,4 @@ docker-compose.yml
 - [Quy trình nhóm](docs/TEAM_WORKFLOW.md)
 - [Kiến trúc](docs/ARCHITECTURE.md)
 - [Khai báo AI](docs/AI_USAGE.md)
+
