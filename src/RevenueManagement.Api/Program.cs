@@ -1,3 +1,4 @@
+using RevenueManagement.Api.Features.Reports;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -150,10 +151,12 @@ builder.Services.AddCors(options =>
 // 4. BUILD APPLICATION
 // ==========================================
 
+builder.Services.AddRevenueReports(builder.Configuration, databaseConnection);
 var app = builder.Build();
 
 app.UseMiddleware<RequestIdMiddleware>();
 app.UseMiddleware<ExceptionMiddleware>();
+app.UseMiddleware<ReportRequestLoggingMiddleware>();
 
 // ==========================================
 // 5. MIDDLEWARE PIPELINE
@@ -295,6 +298,7 @@ app.MapGet(
 // 7. START APPLICATION
 // ==========================================
 
+app.MapHealthChecks("/health/redis");
 app.Run();
 
 // Keep this for integration testing.
