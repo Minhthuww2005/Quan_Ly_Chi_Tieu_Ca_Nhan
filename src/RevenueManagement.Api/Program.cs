@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using RevenueManagement.Api.Infrastructure.Persistence;
+using RevenueManagement.Api.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,6 +12,9 @@ if (string.IsNullOrWhiteSpace(databaseConnection))
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(databaseConnection, npgsql => npgsql.EnableRetryOnFailure()));
+
+// Cấu hình Options Pattern và ValidateOnStart cho JwtOptions, RedisOptions, WorkerOptions.
+builder.Services.AddAppOptions(builder.Configuration);
 
 // TODO(A): đăng ký middleware, auth và các feature services tại đây.
 
