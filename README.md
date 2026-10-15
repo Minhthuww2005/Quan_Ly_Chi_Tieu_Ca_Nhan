@@ -1,8 +1,10 @@
-# RevenueFlow
+# HTD PAY — ASP.NET Core
+
+Bản HTD PAY chuyển từ đồ án Wallet-Funding sang ASP.NET Core và Neon nằm ở `src/WalletFunding.Api` và `wallet-web`. Xem [hướng dẫn chuyển đổi và chạy](docs/WALLET_MIGRATION.md). Giao diện dùng cổng 5174, API dùng cổng 5081.
 
 Ứng dụng quản lý doanh thu theo nhóm bằng ASP.NET Core 10, EF Core/Npgsql, PostgreSQL, Redis, React/TypeScript và SignalR. Bản tích hợp nằm trên nhánh `codex/integrate-revenueflow`, ghép `duy/core-auth`, `thanh/cache-query`, `thuw/queue-background`, `tuyen/realtime-options`.
 
-## Phạm vi
+## RevenueFlow: ứng dụng nghiên cứu có sẵn
 
 - REV-01: CRUD giao dịch Income, xóa mềm, kiểm tra quyền nhóm và RowVersion.
 - REV-02: một endpoint báo cáo lọc nhóm/thời gian/ví, groupBy Date/Wallet/Category/Member; Redis TTL và version theo nhóm.
@@ -76,3 +78,17 @@ Channel nằm trong tiến trình; database lưu lịch/run log để scanner t�
 Neon vẫn là lựa chọn triển khai; kiểm thử hiện tại dùng PostgreSQL local riêng. Không chạy script ghi dữ liệu demo trên Neon dùng chung.
 
 Tài liệu: [phân công](docs/ASSIGNMENTS.md), [ma trận](docs/REQUIREMENT_MATRIX.md), [queue](docs/QUEUE_BACKGROUND.md), [AI](docs/AI_USAGE.md).
+
+## Binary riêng khi API đang chạy trên Windows
+
+`start-wallet.ps1` nhận thêm `-AssemblyPath` để chạy binary đã build trong thư mục riêng, giữ content root và key Data Protection của dự án. Cách này tránh ghi đè DLL đang bị một tiến trình giữ. Trong phiên đối chiếu, API local 5081 và QA 5082 đang dùng binary tại `docs/report-revision/boundary-build`; cả hai giữ cấu hình Local/TestProviders và không khởi tạo lại dữ liệu.
+
+```powershell
+$walletBuildId = [Guid]::NewGuid().ToString('N')
+$walletBuildPath = Join-Path $PWD ('.wallet-build/' + $walletBuildId + '/')
+dotnet build src/WalletFunding.Api -p:UseAppHost=false -p:OutputPath=$walletBuildPath
+./scripts/start-wallet.ps1 -Local -TestProviders -NoBuild -AssemblyPath (Join-Path $walletBuildPath 'WalletFunding.Api.dll')
+```
+
+`TestProviders` chỉ dành cho fixture QA local; không xác nhận đăng nhập Google hoặc thanh toán ngân hàng thật. Bản sửa nhận diện IPN có 17 kiểm tra adapter và 10 probe HTTP mới với callback cố ý sai chữ ký. Những bộ này không thay cho regression toàn chức năng hoặc provider E2E.
+

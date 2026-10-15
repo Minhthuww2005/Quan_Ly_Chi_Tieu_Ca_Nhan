@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/src/">
+    <Project Path="src/WalletFunding.Api/WalletFunding.Api.csproj" />
+  </Folder>
   <Project Path="src/RevenueManagement.Api/RevenueManagement.Api.csproj" />
   <Project Path="tests/RevenueManagement.UnitTests/RevenueManagement.UnitTests.csproj" />
   <Project Path="tests/RevenueManagement.IntegrationTests/RevenueManagement.IntegrationTests.csproj" />
