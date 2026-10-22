@@ -4,8 +4,10 @@ import os
 import json
 import pathlib
 import subprocess
+import re
 import time
 import urllib.error
+import uuid
 import urllib.request
 
 BASE = os.environ.get('WALLET_TEST_BASE', 'http://localhost:5081/api')
@@ -14,8 +16,13 @@ stamp = str(int(time.time()))
 password = 'QA-Wallet@123'
 pin = '123456'
 
-def call(method, path, body=None, token=None, status=200, extra_headers=None):
+FINANCIAL = re.compile(r'^/(transactions|transfer|savings|investments|loans|insurance|payments|bank/topup)(/|$)')
+
+def call(method, path, body=None, token=None, status=200, extra_headers=None, auto_key=True):
     headers = {'Content-Type': 'application/json'}
+    # Same contract as wallet-web/src/services/transport.ts: every financial mutation carries a key.
+    if auto_key and method != 'GET' and FINANCIAL.match(path):
+        headers['Idempotency-Key'] = 'qa-auto-' + uuid.uuid4().hex
     headers.update(extra_headers or {})
     if token:
         headers['Authorization'] = 'Bearer ' + token
@@ -52,11 +59,19 @@ call('GET', f'/wallet/{second}', token=token, status=403)
 call('GET', '/admin/stats', token=token, status=403)
 call('POST', '/auth/set-pin', {'userId': first, 'pinCode': pin}, token)
 call('POST', '/auth/set-pin', {'userId': second, 'pinCode': pin}, other_token)
-loan = call('POST', '/loans/create', {'user_id': first, 'type': 'Vay mô phỏng', 'amount': 20000000, 'interestRate': 12, 'term': 12}, token, status=201)['loan']['id']
+call('POST', '/loans/create', {'user_id': first, 'type': 'Vay mô phỏng', 'amount': 20000000, 'term': 12}, token, status=400)
+call('POST', '/loans/create', {'user_id': first, 'type': 'Vay tiêu dùng', 'amount': 600000000, 'term': 12}, token, status=400)
+created_loan = call('POST', '/loans/create', {'user_id': first, 'type': 'Vay tiêu dùng', 'amount': 20000000, 'interestRate': 0, 'term': 12}, token, status=201)['loan']
+assert created_loan['interestRate'] == 18, 'Loan rate must come from the server product table, not the client'
+loan = created_loan['id']
+call('POST', '/loans/create', {'user_id': first, 'type': 'Vay mua xe', 'amount': 90000000, 'term': 24}, token, status=403)
 before = call('GET', f'/wallet/{first}', token=token)['wallet']['balance']
 call('POST', '/transactions/transfer', {'from_user_id': first, 'to_phone': other_phone, 'amount': -10000, 'pin': pin}, token, status=400)
 call('POST', '/transactions/transfer', {'from_user_id': first, 'to_phone': other_phone, 'amount': 10000, 'pin': '000000'}, token, status=401)
 call('POST', '/transactions/transfer', {'from_user_id': first, 'to_phone': phone, 'amount': 10000, 'pin': pin}, token, status=400)
+invalid = call('POST', '/transactions/transfer', {'from_user_id': first, 'to_phone': other_phone, 'amount': 'abc', 'pin': pin}, token, status=400)
+assert invalid['code'] == 'VALIDATION_ERROR' and 'amount' in invalid['errors'], 'Typed binding must report the failing field'
+call('POST', '/transactions/transfer', {'from_user_id': first, 'to_phone': other_phone, 'amount': 10000, 'pin': pin}, token, status=400, auto_key=False)
 assert call('GET', f'/wallet/{first}', token=token)['wallet']['balance'] == before
 transfer = {'from_user_id': first, 'to_phone': other_phone, 'amount': 10000, 'message': 'QA transfer', 'pin': pin}
 with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
@@ -65,16 +80,20 @@ assert call('GET', f'/wallet/{first}', token=token)['wallet']['balance'] == befo
 assert call('GET', f'/wallet/{second}', token=other_token)['wallet']['balance'] == 20000
 call('GET', f'/transfer/daily-summary/{first}', token=token)
 call('POST', '/transfer/execute', {'senderId': first, 'receiverPhone': other_phone, 'amount': 10000, 'pinCode': pin}, token)
-savings = call('POST', '/savings/create', {'user_id': first, 'name': 'QA Savings', 'amount': 1000000, 'term': 3, 'interestRate': 5}, token, status=201)['account']['id']
+created_savings = call('POST', '/savings/create', {'user_id': first, 'name': 'QA Savings', 'amount': 1000000, 'term': 3, 'interestRate': 100}, token, status=201)['account']
+assert created_savings['interestRate'] == 6.0, 'Savings rate must come from the server term table'
+savings = created_savings['id']
 call('GET', f'/savings/{first}', token=token)
 call('POST', '/savings/close', {'user_id': first, 'id': savings}, token)
 call('POST', '/savings/close', {'user_id': first, 'id': savings}, token, status=400)
 flexible = call('POST', '/savings/create', {'user_id': first, 'name': 'QA Flexible', 'amount': 500000, 'term': 0, 'interestRate': 4.2}, token, status=201)['account']['id']
 call('POST', '/savings/close', {'user_id': first, 'id': flexible}, token)
 investment = call('POST', '/investments/create', {'user_id': first, 'type': 'Cổ phiếu mô phỏng', 'name': 'QA Investment', 'amount': 5000000}, token, status=201)['investment']['id']
-call('PUT', '/investments/update', {'user_id': first, 'id': investment, 'currentValue': 5500000}, token)
-call('POST', '/investments/sell', {'user_id': first, 'id': investment, 'sellPrice': 5500000}, token)
-call('POST', '/investments/sell', {'user_id': first, 'id': investment, 'sellPrice': 5500000}, token, status=400)
+call('PUT', '/investments/update', {'user_id': first, 'id': investment, 'currentValue': 900000000}, token, status=403)
+before_sell = call('GET', f'/wallet/{first}', token=token)['wallet']['balance']
+call('POST', '/investments/sell', {'user_id': first, 'id': investment, 'sellPrice': 1000000000000}, token)
+assert call('GET', f'/wallet/{first}', token=token)['wallet']['balance'] == before_sell + 5000000, 'Sell must credit the server-held value, never the client sellPrice'
+call('POST', '/investments/sell', {'user_id': first, 'id': investment}, token, status=400)
 call('GET', f'/investments/{first}', token=token)
 call('POST', '/loans/payment', {'user_id': first, 'id': loan, 'amount': 2000000}, token)
 call('GET', f'/loans/{first}', token=token)

@@ -9,6 +9,32 @@ public sealed class FinanceService(IWalletRepository repository, IConfiguration 
         return await ExecuteWithReceipt(context, Finance);
     }
 
+    private IReadOnlyDictionary<string, decimal>? prices;
+    private string priceError = "Nguồn giá không phản hồi; ví chưa bị trừ tiền";
+
+    // Market prices are fetched here, before WalletControllerBase opens the write transaction and
+    // takes the global advisory lock, so a slow Binance reply cannot stall every other write.
+    public override async Task PrefetchAsync(WalletRequest context)
+    {
+        var segments = context.Path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var needsPrice = context.Principal.Identity?.IsAuthenticated == true && context.Method is "POST" or "PUT"
+            && segments.Length >= 3 && segments[1].Equals("investments", StringComparison.OrdinalIgnoreCase)
+            && (segments[2] is "sync-price" or "sell" or "update" || segments[2] == "create" && J.Str(context.Body, "type") == FinancePolicy.CryptoType);
+        if (!needsPrice) return;
+        try
+        {
+            var symbols = FinancePolicy.CryptoSymbols.Values.Distinct().ToArray();
+            using var client = http.CreateClient(); client.Timeout = TimeSpan.FromSeconds(10);
+            var url = "https://api.binance.com/api/v3/ticker/price?symbols=" + Uri.EscapeDataString(System.Text.Json.JsonSerializer.Serialize(symbols));
+            var usdToVnd = config.GetValue<decimal>("Investment:UsdToVnd", 24_000);
+            prices = JsonNode.Parse(await client.GetStringAsync(url))!.AsArray().OfType<JsonObject>()
+                .ToDictionary(x => J.Str(x, "symbol"), x => J.Money(x, "price") * usdToVnd);
+        }
+        catch (HttpRequestException) { priceError = "Không lấy được giá thị trường; ví chưa bị trừ tiền"; }
+        catch (TaskCanceledException) { }
+        catch (System.Text.Json.JsonException) { priceError = "Nguồn giá không hợp lệ; ví chưa bị trừ tiền"; }
+    }
+
     private async Task<JsonObject> Finance()
     {
         var table = Area switch { "savings" => "savingsaccounts", "loans" => "loanaccounts", "insurance" => "insurances", _ => "investments" };
@@ -50,26 +76,33 @@ public sealed class FinanceService(IWalletRepository repository, IConfiguration 
             string field;
             if (Area == "savings")
             {
-                Required("name", "term", "interestRate"); var amount = Amount(body, minimum: 100_000); var term = J.Int(body, "term"); Require(term is >= 0 and <= 60, "Kỳ hạn không hợp lệ"); var rate = Rate();
-                Debit(wallet, amount); record["id"] = await store.NextCode(table, "SAV"); record["name"] = J.Str(body, "name"); record["balance"] = amount; record["interestRate"] = rate; record["term"] = term; record["maturityDate"] = DateTime.UtcNow.AddMonths(term).ToString("yyyy-MM-dd"); record["expectedInterest"] = amount * rate * term / 1200;
-                await Record(wallet, -amount, "savings", "Mở sổ tiết kiệm", J.Str(body, "name")); field = "account";
+                var input = Bind<SavingsCreateRequest>(); var amount = input.Amount!.Value; var term = input.Term!.Value;
+                var rate = FinancePolicy.SavingsRate(term); // server-owned; the client's interestRate is ignored
+                Debit(wallet, amount); record["id"] = await store.NextCode(table, "SAV"); record["name"] = input.Name; record["balance"] = amount; record["interestRate"] = rate; record["term"] = term; record["maturityDate"] = DateTime.UtcNow.AddMonths(term).ToString("yyyy-MM-dd"); record["expectedInterest"] = amount * rate * term / 1200;
+                await Record(wallet, -amount, "savings", "Mở sổ tiết kiệm", input.Name!); field = "account";
             }
             else if (Area == "investments")
             {
-                Required("name", "type"); var amount = Amount(body, minimum: 5_000_000); Debit(wallet, amount);
+                Required("name", "type"); var amount = Amount(body, minimum: 5_000_000);
+                var crypto = J.Str(body, "type") == FinancePolicy.CryptoType;
+                var price = crypto ? await CryptoPrice(J.Str(body, "name")) : 0; // fail before touching the wallet
+                Debit(wallet, amount);
                 record["id"] = await store.NextCode(table, "INV"); record["type"] = J.Str(body, "type"); record["name"] = J.Str(body, "name"); record["amount"] = amount; record["currentValue"] = amount; record["profit"] = 0; record["profitPercent"] = 0; record["purchaseDate"] = Today;
-                if (J.Str(body, "type") == "Tiền điện tử")
-                {
-                    var price = await CryptoPrice(J.Str(body, "name")); record["purchasePrice"] = price; record["quantity"] = amount / price;
-                }
+                if (crypto) { record["purchasePrice"] = price; record["quantity"] = amount / price; }
                 await Record(wallet, -amount, "investment", "Đầu tư", J.Str(body, "name")); field = "investment";
             }
             else if (Area == "loans")
             {
-                Required("type", "term", "interestRate"); var amount = Amount(body, minimum: 10_000_000); var term = Term(360); var rate = Rate();
+                var input = Bind<LoanCreateRequest>(); var amount = input.Amount!.Value; var term = input.Term!.Value;
+                var product = FinancePolicy.Loans[input.Type!]; var rate = product.AnnualRate; // server-owned rate
+                var borrower = await User(RequestedId);
+                var activeLoans = (await store.All(table)).Where(x => J.Int(x, "user_id") == RequestedId && J.Str(x, "status") == "active").ToArray();
+                Require(activeLoans.Length < FinancePolicy.MaxActiveLoans, $"Tối đa {FinancePolicy.MaxActiveLoans} khoản vay đang hoạt động", 403, "LOAN_LIMIT_EXCEEDED");
+                var ceiling = FinancePolicy.LoanCeiling(J.Str(borrower, "kycTier", "TIER_1"));
+                Require(activeLoans.Sum(x => J.Money(x, "remainingAmount")) + amount <= ceiling, $"Tổng dư nợ vượt hạn mức {ceiling:N0} VND theo cấp KYC", 403, "LOAN_LIMIT_EXCEEDED");
                 var monthly = (double)rate / 1200; var payment = monthly == 0 ? amount / term : (decimal)((double)amount * monthly * Math.Pow(1 + monthly, term) / (Math.Pow(1 + monthly, term) - 1));
-                record["id"] = await store.NextCode(table, "LOAN"); record["type"] = J.Str(body, "type"); record["amount"] = amount; record["remainingAmount"] = amount; record["interestRate"] = rate; record["term"] = term; record["monthlyPayment"] = Math.Round(payment); record["nextPaymentDate"] = DateTime.UtcNow.AddMonths(1).ToString("yyyy-MM-dd");
-                Credit(wallet, amount); await Record(wallet, amount, "loan", "Giải ngân khoản vay", J.Str(body, "type")); field = "loan";
+                record["id"] = await store.NextCode(table, "LOAN"); record["type"] = input.Type; record["amount"] = amount; record["remainingAmount"] = amount; record["interestRate"] = rate; record["term"] = term; record["monthlyPayment"] = Math.Round(payment); record["nextPaymentDate"] = DateTime.UtcNow.AddMonths(1).ToString("yyyy-MM-dd");
+                Credit(wallet, amount); await Record(wallet, amount, "loan", "Giải ngân khoản vay", input.Type!); field = "loan";
             }
             else
             {
@@ -110,8 +143,23 @@ public sealed class FinanceService(IWalletRepository repository, IConfiguration 
         if (Area == "investments")
         {
             Require(Action is "update" or "sell", "Endpoint không tồn tại", 404);
-            var value = Amount(body, Action == "sell" ? "sellPrice" : "currentValue", 0); UpdateProfit(item, value);
-            if (Action == "sell") { item["status"] = "sold"; Credit(wallet, value); await Record(wallet, value, "investment", "Bán đầu tư", J.Str(item, "name")); }
+            var crypto = J.Str(item, "type") == FinancePolicy.CryptoType && J.Money(item, "quantity") > 0;
+            decimal value;
+            if (Action == "update")
+            {
+                // Revaluing a non-market product is a back-office action: a user must not be able to
+                // set the value that a later sell will credit.
+                Require(Admin, "Chỉ quản trị viên được cập nhật giá trị khoản đầu tư", 403);
+                value = crypto ? Math.Round(await CryptoPrice(J.Str(item, "name")) * J.Money(item, "quantity")) : Amount(body, "currentValue", 0);
+            }
+            else
+            {
+                // The credited amount is decided on the server: live price x quantity for crypto,
+                // otherwise the last value stored by the server. Any client "sellPrice" is ignored.
+                value = crypto ? Math.Round(await CryptoPrice(J.Str(item, "name")) * J.Money(item, "quantity")) : J.Money(item, "currentValue");
+            }
+            UpdateProfit(item, value);
+            if (Action == "sell") { item["status"] = "sold"; item["soldAt"] = Now; Credit(wallet, value); await Record(wallet, value, "investment", "Bán đầu tư", J.Str(item, "name")); }
             return J.Obj(new { success = true, message = "Cập nhật đầu tư thành công", investment = J.Public(item), sellPrice = value, profit = J.Money(item, "profit"), profitPercent = J.Money(item, "profitPercent") });
         }
         if (Area == "loans")
@@ -128,23 +176,15 @@ public sealed class FinanceService(IWalletRepository repository, IConfiguration 
         throw new ApiError(404, "Endpoint không tồn tại");
     }
     private int Term(int max) { var term = J.Int(body, "term"); Require(term >= 1 && term <= max, "Kỳ hạn không hợp lệ"); return term; }
-    private decimal Rate() { var rate = J.Money(body, "interestRate"); Require(rate is >= 0 and <= 100, "Lãi suất không hợp lệ"); return rate; }
     private static void UpdateProfit(JsonObject item, decimal value)
     {
         item["currentValue"] = value; item["profit"] = value - J.Money(item, "amount"); item["profitPercent"] = J.Money(item, "amount") > 0 ? (value - J.Money(item, "amount")) / J.Money(item, "amount") * 100 : 0;
     }
-    private async Task<decimal> CryptoPrice(string name)
+    private Task<decimal> CryptoPrice(string name)
     {
-        var symbols = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["bitcoin"] = "BTCUSDT", ["btc"] = "BTCUSDT", ["ethereum"] = "ETHUSDT", ["eth"] = "ETHUSDT", ["bnb"] = "BNBUSDT", ["solana"] = "SOLUSDT", ["sol"] = "SOLUSDT", ["cardano"] = "ADAUSDT", ["ada"] = "ADAUSDT", ["xrp"] = "XRPUSDT", ["dogecoin"] = "DOGEUSDT", ["doge"] = "DOGEUSDT", ["polkadot"] = "DOTUSDT" };
-        Require(symbols.TryGetValue(name.Trim(), out var symbol), "Đồng tiền chưa được hỗ trợ");
-        try
-        {
-            using var client = http.CreateClient(); client.Timeout = TimeSpan.FromSeconds(10);
-            var json = JsonNode.Parse(await client.GetStringAsync("https://api.binance.com/api/v3/ticker/price?symbol=" + symbol))!.AsObject();
-            var usdToVnd = config.GetValue<decimal>("Investment:UsdToVnd", 24_000);
-            var price = J.Money(json, "price") * usdToVnd; Require(price > 0, "Nguồn giá không hợp lệ", 503); return price;
-        }
-        catch (HttpRequestException) { throw new ApiError(503, "Không lấy được giá thị trường; ví chưa bị trừ tiền"); }
-        catch (TaskCanceledException) { throw new ApiError(503, "Nguồn giá không phản hồi; ví chưa bị trừ tiền"); }
+        Require(FinancePolicy.CryptoSymbols.TryGetValue(name.Trim(), out var symbol), "Đồng tiền chưa được hỗ trợ");
+        if (prices is null || !prices.TryGetValue(symbol!, out var price)) throw new ApiError(503, priceError);
+        Require(price > 0, "Nguồn giá không hợp lệ", 503);
+        return Task.FromResult(price);
     }
 }

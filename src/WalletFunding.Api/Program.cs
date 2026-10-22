@@ -56,7 +56,7 @@ app.UseMiddleware<ApiExceptionMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
-app.UseSwagger(); app.UseSwaggerUI();
+if (app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }
 app.MapGet("/api/health", async (NpgsqlDataSource source) =>
 {
     await using var c = await source.OpenConnectionAsync();

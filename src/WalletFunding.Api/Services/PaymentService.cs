@@ -27,14 +27,13 @@ public sealed class PaymentService(IWalletRepository repository, IConfiguration 
         }
         Require(Method == "POST" && Action == "vnpay" && parts.ElementAtOrDefault(2) == "create", "Endpoint không tồn tại", 404);
         Require(gateway.IsConfigured, "Chưa cấu hình VNPay sandbox: TmnCode và HashSecret", 503);
-        await Pin(current!, J.Str(body, "pin", J.Str(body, "pin_code")));
-        var amount = Amount(body, minimum: 10_000); Require(amount <= 50_000_000, "Tối đa 50.000.000 VND mỗi giao dịch");
-        var type = J.Str(body, "type", "wallet_topup"); Require(type is "wallet_topup" or "bill_payment", "Loại thanh toán không hợp lệ");
-        var billType = J.Str(body, "bill_type"); var billCode = J.Str(body, "bill_code");
-        var period = J.Str(body, "billing_period", DateTime.UtcNow.ToString("yyyy-MM"));
+        var input = Bind<VnpayCreateRequest>();
+        await Pin(current!, input.PinValue);
+        var amount = input.Amount!.Value; var type = input.Type;
+        var billType = input.BillType ?? ""; var billCode = input.BillCode ?? "";
+        var period = input.BillingPeriod ?? DateTime.UtcNow.ToString("yyyy-MM");
         if (type == "bill_payment")
         {
-            Required("bill_type", "bill_code");
             Require(!payments.Any(x => J.Int(x, "user_id") == UserId && J.Str(x, "bill_type") == billType && J.Str(x, "bill_code") == billCode && J.Str(x, "billing_period") == period &&
                 (J.Str(x, "status") == "success" || J.Str(x, "status") == "pending" && DateTimeOffset.TryParse(J.Str(x, "expires_at"), out var end) && end > DateTimeOffset.UtcNow)), "Hóa đơn đã thanh toán hoặc đang chờ VNPay xử lý", 409);
         }
@@ -61,6 +60,15 @@ public sealed class PaymentService(IWalletRepository repository, IConfiguration 
         if (!ipn) return J.Obj(new { success = true, signatureValid = true, responseCode = request.Query["vnp_ResponseCode"], orderId = J.Str(order, "order_id"), status = J.Str(order, "status"), message = "Kết quả được xác minh; trạng thái chỉ cập nhật qua IPN" });
         if (J.Str(order, "status") != "pending") return Reply("02", "Đơn hàng đã xử lý");
         var successful = request.Query["vnp_ResponseCode"] == "00" && request.Query["vnp_TransactionStatus"] == "00";
+        if (Expired(order))
+        {
+            // The order window (vnp_ExpireDate) has closed: never credit the wallet late. A paid-but-expired
+            // order is kept for manual reconciliation/refund instead of silently becoming a top-up.
+            order["status"] = "expired"; order["settled_at"] = Now;
+            order["gateway_transaction_no"] = request.Query["vnp_TransactionNo"]; order["response_code"] = request.Query["vnp_ResponseCode"];
+            if (successful) order["reconciliation_required"] = true;
+            return Reply("02", "Đơn hàng đã hết hạn");
+        }
         order["status"] = successful ? "success" : "failed";
         order["gateway_transaction_no"] = request.Query["vnp_TransactionNo"];
         order["response_code"] = request.Query["vnp_ResponseCode"]; order["settled_at"] = Now;
@@ -88,7 +96,9 @@ public sealed class PaymentService(IWalletRepository repository, IConfiguration 
     private static JsonObject OrderView(JsonObject order)
     {
         var result = J.Public(order);
-        if (J.Str(order, "status") == "pending" && DateTimeOffset.TryParse(J.Str(order, "expires_at"), out var expiry) && expiry < DateTimeOffset.UtcNow) result["status"] = "expired";
+        if (J.Str(order, "status") == "pending" && Expired(order)) result["status"] = "expired";
         return result;
     }
+    private static bool Expired(JsonObject order) =>
+        DateTimeOffset.TryParse(J.Str(order, "expires_at"), null, System.Globalization.DateTimeStyles.RoundtripKind, out var expiry) && expiry < DateTimeOffset.UtcNow;
 }

@@ -11,6 +11,9 @@ public sealed class PostgresWalletRepository(NpgsqlDataSource source) : IWalletR
     private NpgsqlTransaction? transaction;
     private readonly Dictionary<string, List<JsonObject>> cache = [];
     private readonly Dictionary<string, string> originals = [];
+    // Rows added to a table that this request never loaded: inserted on Commit without reading the table.
+    private readonly Dictionary<string, List<JsonObject>> pending = [];
+    private readonly Dictionary<string, int> allocated = [];
 
     public static async Task Initialize(NpgsqlDataSource source, string? importPath, IDataProtector protector)
     {
@@ -38,6 +41,7 @@ public sealed class PostgresWalletRepository(NpgsqlDataSource source) : IWalletR
             CREATE UNIQUE INDEX IF NOT EXISTS ux_htd_wallet_id ON htdpay.wallets ((data->>'wallet_id'));
             CREATE UNIQUE INDEX IF NOT EXISTS ux_htd_transaction_id ON htdpay.transactions ((data->>'trans_id'));
             CREATE INDEX IF NOT EXISTS ix_htd_transaction_wallet ON htdpay.transactions ((data->>'wallet_id'), (data->>'timestamp'));
+            CREATE INDEX IF NOT EXISTS ix_htd_transaction_number ON htdpay.transactions ((CASE WHEN data->>'trans_id' ~ '^[0-9]{1,9}$' THEN (data->>'trans_id')::int END));
             CREATE UNIQUE INDEX IF NOT EXISTS ux_htd_bank_code ON htdpay.supportedbanks ((data->>'bank_code'));
             CREATE UNIQUE INDEX IF NOT EXISTS ux_htd_bank_account ON htdpay.bankaccounts ((data->>'bank_code'), (data->>'account_number'));
             INSERT INTO htdpay.schema_versions(version) VALUES (1) ON CONFLICT DO NOTHING;
@@ -113,21 +117,60 @@ public sealed class PostgresWalletRepository(NpgsqlDataSource source) : IWalletR
             var key = reader.GetString(0); var json = reader.GetString(1); var d = JsonNode.Parse(json)!.AsObject();
             d["_id"] = key; result.Add(d); originals[table + "/" + key] = d.ToJsonString();
         }
+        if (pending.Remove(table, out var added)) result.AddRange(added);
         return cache[table] = result;
+    }
+
+    public async Task<List<JsonObject>> Where(string table, string field, string value)
+    {
+        if (!Tables.Contains(table) || !System.Text.RegularExpressions.Regex.IsMatch(field, "^[a-z_]{1,40}$")) throw new InvalidOperationException("Unknown table or field");
+        if (cache.TryGetValue(table, out var loaded)) return loaded.Where(x => J.Str(x, field) == value).ToList();
+        // Field name is whitelisted above and written literally so the expression index can be used.
+        await using var cmd = new NpgsqlCommand($"SELECT record_key,data::text FROM htdpay.{table} WHERE data->>'{field}' = @value", connection!, transaction);
+        cmd.Parameters.AddWithValue("value", value);
+        await using var reader = await cmd.ExecuteReaderAsync();
+        var result = new List<JsonObject>();
+        while (await reader.ReadAsync()) { var d = JsonNode.Parse(reader.GetString(1))!.AsObject(); d["_id"] = reader.GetString(0); result.Add(d); }
+        // Read-only snapshot: not cached, so Commit never treats unloaded rows as deleted.
+        if (pending.TryGetValue(table, out var added)) result.AddRange(added.Where(x => J.Str(x, field) == value));
+        return result;
     }
 
     public async Task Add(string table, JsonObject data)
     {
         data["_id"] ??= JsonValue.Create(Guid.NewGuid().ToString("N"));
-        (await All(table)).Add(data);
+        if (cache.TryGetValue(table, out var loaded)) { loaded.Add(data); return; }
+        if (!Tables.Contains(table)) throw new InvalidOperationException("Unknown table");
+        (pending.TryGetValue(table, out var list) ? list : pending[table] = []).Add(data);
+        await Task.CompletedTask;
     }
 
-    public async Task<int> Next(string table, string field) => (await All(table)).Select(x => J.Int(x, field)).DefaultIfEmpty().Max() + 1;
+    // MAX+1 is computed in SQL instead of loading every row; safe because writers hold the advisory lock.
+    public async Task<int> Next(string table, string field)
+    {
+        if (cache.TryGetValue(table, out var loaded)) return loaded.Select(x => J.Int(x, field)).DefaultIfEmpty().Max() + 1;
+        if (!Tables.Contains(table) || !System.Text.RegularExpressions.Regex.IsMatch(field, "^[a-z_]{1,40}$")) throw new InvalidOperationException("Unknown table or field");
+        var slot = table + "/" + field;
+        if (!allocated.TryGetValue(slot, out var last))
+        {
+            await using var cmd = new NpgsqlCommand($"SELECT COALESCE(max(CASE WHEN data->>'{field}' ~ '^[0-9]{{1,9}}$' THEN (data->>'{field}')::int END), 0) FROM htdpay.{table}", connection!, transaction);
+            last = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        }
+        last = Math.Max(last, pending.GetValueOrDefault(table)?.Select(x => J.Int(x, field)).DefaultIfEmpty().Max() ?? 0);
+        allocated[slot] = last + 1;
+        return last + 1;
+    }
     public async Task<string> NextCode(string table, string prefix) => prefix + ((await All(table)).Select(x => int.TryParse(J.Str(x, "id").Replace(prefix, ""), out var n) ? n : 0).DefaultIfEmpty().Max() + 1).ToString("D6");
 
     public async Task Commit()
     {
         if (transaction == null) return;
+        foreach (var (table, docs) in pending)
+            foreach (var d in docs)
+            {
+                await using var insert = new NpgsqlCommand($"INSERT INTO htdpay.{table}(record_key,data) VALUES (@id,@data::jsonb)", connection!, transaction);
+                insert.Parameters.AddWithValue("id", J.Str(d, "_id")); insert.Parameters.AddWithValue("data", d.ToJsonString()); await insert.ExecuteNonQueryAsync();
+            }
         foreach (var (table, docs) in cache)
         {
             var keys = docs.Select(d => J.Str(d, "_id")).ToHashSet();

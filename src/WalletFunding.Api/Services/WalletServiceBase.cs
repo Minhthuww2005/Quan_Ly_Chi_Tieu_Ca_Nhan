@@ -1,8 +1,11 @@
+using System.ComponentModel.DataAnnotations;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.IdentityModel.Tokens;
 
@@ -16,6 +19,7 @@ public abstract class WalletServiceBase(IWalletRepository repository, IConfigura
     protected readonly IHttpClientFactory http = httpFactory;
     protected readonly IHostEnvironment environment = hostEnvironment;
     public abstract Task<ServiceResponse> ExecuteAsync(WalletRequest context);
+    public virtual Task PrefetchAsync(WalletRequest context) => Task.CompletedTask;
     protected WalletRequest request = null!;
     protected int StatusCode = 200;
     protected JsonObject body = [];
@@ -37,6 +41,34 @@ public abstract class WalletServiceBase(IWalletRepository repository, IConfigura
     {
         var value = J.Money(data, name); Require(value >= minimum && value <= 1_000_000_000_000 && decimal.Truncate(value) == value, "Số tiền không hợp lệ"); return value;
     }
+    private static readonly JsonSerializerOptions BindOptions = new(JsonSerializerDefaults.Web) { NumberHandling = JsonNumberHandling.AllowReadingFromString };
+
+    // Binds the request body to a typed contract and runs DataAnnotations + IValidatableObject.
+    // Failures become 400 VALIDATION_ERROR with field errors (ValidationProblemDetails shape).
+    protected T Bind<T>() where T : class, new()
+    {
+        T model;
+        try { model = body.Deserialize<T>(BindOptions) ?? new T(); }
+        catch (JsonException e)
+        {
+            var field = string.IsNullOrEmpty(e.Path) ? "body" : e.Path.TrimStart('$', '.');
+            throw ValidationFailed(new Dictionary<string, string[]> { [field] = ["Giá trị không đúng kiểu dữ liệu"] });
+        }
+        var results = new List<ValidationResult>();
+        if (!Validator.TryValidateObject(model, new ValidationContext(model), results, validateAllProperties: true))
+        {
+            var errors = results
+                .SelectMany(r => (r.MemberNames.Any() ? r.MemberNames : ["body"]).Select(m => (Field: JsonName<T>(m), Message: r.ErrorMessage ?? "Không hợp lệ")))
+                .GroupBy(x => x.Field).ToDictionary(g => g.Key, g => g.Select(x => x.Message).Distinct().ToArray());
+            throw ValidationFailed(errors);
+        }
+        return model;
+    }
+    private static ApiError ValidationFailed(Dictionary<string, string[]> errors) =>
+        new(400, errors.Values.First()[0], "VALIDATION_ERROR") { Errors = errors };
+    private static string JsonName<T>(string member) =>
+        typeof(T).GetProperty(member)?.GetCustomAttributes(typeof(JsonPropertyNameAttribute), false).OfType<JsonPropertyNameAttribute>().FirstOrDefault()?.Name ?? member;
+
     protected async Task<JsonObject> Find(string table, string field, string value) => (await store.All(table)).FirstOrDefault(x => J.Str(x, field) == value) ?? throw new ApiError(404, "Không tìm thấy dữ liệu");
     protected async Task<JsonObject> User(int id) => await Find("users", "user_id", id.ToString());
     protected async Task<JsonObject> Wallet(int id) => await Find("wallets", "user_id", id.ToString());
@@ -89,11 +121,12 @@ public abstract class WalletServiceBase(IWalletRepository repository, IConfigura
         var financial = Method != "GET" && (Area is "transactions" or "transfer" or "savings" or "investments" or "loans" or "insurance" or "payments" || Area == "bank" && Action == "topup");
         string? fingerprint = null;
         string? receiptKey = null;
-        if (financial && key.Length > 0)
+        if (financial)
         {
+            Require(key.Length > 0, "Thiếu Idempotency-Key cho thao tác tài chính", 400, "IDEMPOTENCY_KEY_REQUIRED");
             Require(key.Length is >= 8 and <= 128, "Idempotency-Key không hợp lệ");
             receiptKey = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(UserId + ":" + Method + ":" + context.Path + ":" + key)));
-            fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(body.ToJsonString())));
+            fingerprint = Fingerprint(body);
             var receipt = (await store.All("payments")).FirstOrDefault(x => J.Str(x, "kind") == "request_receipt" && J.Str(x, "request_key") == receiptKey);
             if (receipt != null)
             {
@@ -105,6 +138,15 @@ public abstract class WalletServiceBase(IWalletRepository repository, IConfigura
         if (receiptKey != null)
             await store.Add("payments", J.Obj(new { kind = "request_receipt", request_key = receiptKey, fingerprint, user_id = UserId, status_code = StatusCode, response, created_at = Now }));
         return new ServiceResponse(response, StatusCode);
+    }
+
+    // Secrets never enter the stored receipt: a 6-digit PIN hashed alone is trivially reversible.
+    private static readonly string[] SecretFields = ["pin", "pinCode", "pin_code", "old_pin", "oldPinCode", "new_pin", "password"];
+    protected static string Fingerprint(JsonObject data)
+    {
+        var copy = data.DeepClone().AsObject();
+        foreach (var field in SecretFields) copy.Remove(field);
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(copy.ToJsonString())));
     }
 
     protected async Task<JsonObject> Record(JsonObject wallet, decimal amount, string type, string title, string description, string? reference = null)
@@ -128,9 +170,19 @@ public abstract class WalletServiceBase(IWalletRepository repository, IConfigura
         result[field] = System.Text.Json.JsonSerializer.SerializeToNode(list.Skip((page - 1) * limit).Take(limit).ToArray());
         return result;
     }
-    protected async Task<decimal> SentToday(JsonObject wallet, string type)
+    // Money that LEFT the wallet today for this type (amount < 0). Incoming transfers must not
+    // consume the sender limit of the person who received them.
+    protected async Task<decimal> SentToday(JsonObject wallet, string type) =>
+        (await TodayRecords(wallet, type)).Where(x => J.Money(x, "amount") < 0).Sum(x => -J.Money(x, "amount"));
+    // Money that ENTERED the wallet today for this type (amount > 0), e.g. deposit limits.
+    protected async Task<decimal> ReceivedToday(JsonObject wallet, string type) =>
+        (await TodayRecords(wallet, type)).Where(x => J.Money(x, "amount") > 0).Sum(x => J.Money(x, "amount"));
+    private async Task<IEnumerable<JsonObject>> TodayRecords(JsonObject wallet, string type) =>
+        (await store.Where("transactions", "wallet_id", J.Str(wallet, "wallet_id"))).Where(x => J.Str(x, "type") == type && J.Str(x, "status") == "success" && J.Str(x, "timestamp").StartsWith(Today));
+    protected async Task RequireTransferLimit(JsonObject user, JsonObject wallet, decimal amount)
     {
-        return (await store.All("transactions")).Where(x => J.Int(x, "wallet_id") == J.Int(wallet, "wallet_id") && J.Str(x, "type") == type && J.Str(x, "status") == "success" && J.Str(x, "timestamp").StartsWith(Today)).Sum(x => Math.Abs(J.Money(x, "amount")));
+        var sent = await SentToday(wallet, "transfer");
+        Require(sent + amount <= DailyLimit(user), "Vượt hạn mức chuyển tiền trong ngày", 403, "DAILY_LIMIT_EXCEEDED");
     }
     protected static decimal DailyLimit(JsonObject user) => J.Str(user, "kycTier") == "TIER_2" ? 50_000_000 : 5_000_000;
     protected async Task Notify(int userId, string title, string message)

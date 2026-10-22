@@ -19,4 +19,6 @@ public sealed class ApiError(int status, string message, string code = "VALIDATI
 {
     public int Status { get; } = status;
     public string Code { get; } = code;
+    // Field-level errors in the same shape as ValidationProblemDetails.Errors.
+    public IReadOnlyDictionary<string, string[]>? Errors { get; init; }
 }

@@ -27,10 +27,28 @@ public sealed class BankingService(IWalletRepository repository, IConfiguration 
                 var d = body.DeepClone().AsObject(); d["is_active"] ??= JsonValue.Create(true); await store.Add("supportedbanks", d); return J.Obj(new { success = true, data = J.Public(d) });
             }
             var bank = await Find("supportedbanks", "bank_code", parts.ElementAtOrDefault(2) ?? "");
-            if (Method == "PATCH") bank["is_active"] = !J.Bool(bank, "is_active");
-            else if (Method == "PUT") foreach (var field in new[] { "bank_name", "bank_full_name", "short_name", "logo_url", "is_active", "display_order", "gateway_support" }) if (body.ContainsKey(field)) bank[field] = body[field]?.DeepClone();
-            else if (Method == "DELETE") { Require(!(await store.All("linkedbanks")).Any(x => J.Str(x, "bank_code") == J.Str(bank, "bank_code") && J.Str(x, "status") == "active"), "Ngân hàng đang được liên kết"); banks.Remove(bank); }
-            else throw new ApiError(404, "Endpoint không tồn tại");
+            // Braces matter here: without them the trailing else-branches bound to the inner `if`
+            // inside the foreach, so DELETE was a silent no-op and a partial PUT returned 404.
+            if (Method == "PATCH")
+            {
+                bank["is_active"] = !J.Bool(bank, "is_active");
+            }
+            else if (Method == "PUT")
+            {
+                foreach (var field in new[] { "bank_name", "bank_full_name", "short_name", "logo_url", "is_active", "display_order", "gateway_support" })
+                {
+                    if (body.ContainsKey(field)) bank[field] = body[field]?.DeepClone();
+                }
+            }
+            else if (Method == "DELETE")
+            {
+                Require(!(await store.All("linkedbanks")).Any(x => J.Str(x, "bank_code") == J.Str(bank, "bank_code") && J.Str(x, "status") == "active"), "Ngân hàng đang được liên kết");
+                banks.Remove(bank);
+            }
+            else
+            {
+                throw new ApiError(404, "Endpoint không tồn tại");
+            }
             return J.Obj(new { success = true, message = "Cập nhật ngân hàng thành công", data = J.Public(bank) });
         }
         if (Area == "bank-accounts")
@@ -41,12 +59,15 @@ public sealed class BankingService(IWalletRepository repository, IConfiguration 
                 Required("bank_code", "account_number");
                 var account = accounts.FirstOrDefault(x => J.Str(x, "bank_code") == J.Str(body, "bank_code") && J.Str(x, "account_number") == J.Str(body, "account_number") && J.Str(x, "status") == "active");
                 Require(account != null, "Không tìm thấy tài khoản ngân hàng", 404);
-                return J.Obj(new { success = true, message = "Tài khoản hợp lệ", data = J.Public(account!, "email", "phone", "balance") });
+                // Only what the transfer form needs to confirm the payee; no balance, contact data or internal ids.
+                return J.Obj(new { success = true, message = "Tài khoản hợp lệ", data = new { bank_code = J.Str(account!, "bank_code"), bank_name = J.Str(account!, "bank_name"), account_number = J.Str(account!, "account_number"), account_name = J.Str(account!, "account_name"), status = J.Str(account!, "status") } });
             }
             Require(Method == "GET", "Endpoint không tồn tại", 404);
             if (Action == "stats") { Require(Admin, "Yêu cầu quyền quản trị", 403); return J.Obj(new { success = true, total = accounts.Count, stats = accounts.GroupBy(x => J.Str(x, "bank_code")).Select(g => new { bank_code = g.Key, total = g.Count() }).ToArray() }); }
             if (Action == "search")
             {
+                // Substring search over names/numbers would let any user enumerate other people's accounts.
+                Require(Admin, "Yêu cầu quyền quản trị", 403);
                 var q = request.Query["q"].ToString(); if (q == "") q = request.Query["query"].ToString(); Require(q.Length >= 2, "Nhập ít nhất 2 ký tự tìm kiếm");
                 var list = accounts.Where(x => J.Str(x, "status") == "active" && (J.Str(x, "account_name").Contains(q, StringComparison.OrdinalIgnoreCase) || J.Str(x, "account_number").Contains(q))).Take(20).Select(x => J.Public(x, "email", "phone", "balance")).ToArray();
                 return J.Obj(new { success = true, data = list, accounts = list });

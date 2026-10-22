@@ -27,6 +27,7 @@ public abstract class WalletControllerBase(IWalletService service, IWalletReposi
             && segments[1].Equals("payments", StringComparison.OrdinalIgnoreCase)
             && segments[2].Equals("vnpay", StringComparison.OrdinalIgnoreCase)
             && segments[3].Equals("ipn", StringComparison.OrdinalIgnoreCase);
+        await service.PrefetchAsync(request);
         await repository.Begin(Request.Method != "GET" || isSettlingIpn);
         var result = await service.ExecuteAsync(request);
         await repository.Commit();
