@@ -1,0 +1,228 @@
+{
+  "generatedAt": "2026-10-22T16:28:33Z",
+  "hosts": {
+    "new": "http://localhost:5082/api",
+    "old": "http://localhost:5083/api"
+  },
+  "samplesPerCell": 20,
+  "method": "client wall time per sequential request (urllib, no keep-alive), local PostgreSQL; synthetic rows belong to other wallets",
+  "machine": "Linux-6.18.44-fc-v140-x86_64-with-glibc2.39",
+  "summary": [
+    {
+      "host": "new",
+      "table_rows": 212,
+      "endpoint": "history",
+      "samples": 20,
+      "median_ms": 3.0,
+      "p95_ms": 5.8,
+      "max_ms": 39.3
+    },
+    {
+      "host": "new",
+      "table_rows": 212,
+      "endpoint": "daily-summary",
+      "samples": 20,
+      "median_ms": 2.8,
+      "p95_ms": 8.2,
+      "max_ms": 28.6
+    },
+    {
+      "host": "new",
+      "table_rows": 212,
+      "endpoint": "transfer",
+      "samples": 20,
+      "median_ms": 196.2,
+      "p95_ms": 207.5,
+      "max_ms": 274.8
+    },
+    {
+      "host": "old",
+      "table_rows": 212,
+      "endpoint": "history",
+      "samples": 20,
+      "median_ms": 12.4,
+      "p95_ms": 26.2,
+      "max_ms": 199.5
+    },
+    {
+      "host": "old",
+      "table_rows": 212,
+      "endpoint": "daily-summary",
+      "samples": 20,
+      "median_ms": 9.6,
+      "p95_ms": 18.9,
+      "max_ms": 29.1
+    },
+    {
+      "host": "old",
+      "table_rows": 212,
+      "endpoint": "transfer",
+      "samples": 20,
+      "median_ms": 305.6,
+      "p95_ms": 414.5,
+      "max_ms": 561.3
+    },
+    {
+      "host": "new",
+      "table_rows": 10292,
+      "endpoint": "history",
+      "samples": 20,
+      "median_ms": 2.9,
+      "p95_ms": 3.9,
+      "max_ms": 14.8
+    },
+    {
+      "host": "new",
+      "table_rows": 10292,
+      "endpoint": "daily-summary",
+      "samples": 20,
+      "median_ms": 2.0,
+      "p95_ms": 2.2,
+      "max_ms": 2.3
+    },
+    {
+      "host": "new",
+      "table_rows": 10292,
+      "endpoint": "transfer",
+      "samples": 20,
+      "median_ms": 193.5,
+      "p95_ms": 208.6,
+      "max_ms": 211.8
+    },
+    {
+      "host": "old",
+      "table_rows": 10292,
+      "endpoint": "history",
+      "samples": 20,
+      "median_ms": 98.5,
+      "p95_ms": 157.1,
+      "max_ms": 159.7
+    },
+    {
+      "host": "old",
+      "table_rows": 10292,
+      "endpoint": "daily-summary",
+      "samples": 20,
+      "median_ms": 84.8,
+      "p95_ms": 129.4,
+      "max_ms": 152.0
+    },
+    {
+      "host": "old",
+      "table_rows": 10292,
+      "endpoint": "transfer",
+      "samples": 20,
+      "median_ms": 306.2,
+      "p95_ms": 343.5,
+      "max_ms": 347.0
+    },
+    {
+      "host": "new",
+      "table_rows": 100372,
+      "endpoint": "history",
+      "samples": 20,
+      "median_ms": 3.8,
+      "p95_ms": 5.6,
+      "max_ms": 8.7
+    },
+    {
+      "host": "new",
+      "table_rows": 100372,
+      "endpoint": "daily-summary",
+      "samples": 20,
+      "median_ms": 2.6,
+      "p95_ms": 3.1,
+      "max_ms": 3.5
+    },
+    {
+      "host": "new",
+      "table_rows": 100372,
+      "endpoint": "transfer",
+      "samples": 20,
+      "median_ms": 195.8,
+      "p95_ms": 205.1,
+      "max_ms": 214.5
+    },
+    {
+      "host": "old",
+      "table_rows": 100372,
+      "endpoint": "history",
+      "samples": 20,
+      "median_ms": 920.7,
+      "p95_ms": 1138.2,
+      "max_ms": 1151.3
+    },
+    {
+      "host": "old",
+      "table_rows": 100372,
+      "endpoint": "daily-summary",
+      "samples": 20,
+      "median_ms": 856.7,
+      "p95_ms": 1120.2,
+      "max_ms": 1182.6
+    },
+    {
+      "host": "old",
+      "table_rows": 100372,
+      "endpoint": "transfer",
+      "samples": 20,
+      "median_ms": 1356.3,
+      "p95_ms": 1613.7,
+      "max_ms": 1708.7
+    },
+    {
+      "host": "new",
+      "table_rows": 300452,
+      "endpoint": "history",
+      "samples": 20,
+      "median_ms": 3.0,
+      "p95_ms": 3.8,
+      "max_ms": 10.5
+    },
+    {
+      "host": "new",
+      "table_rows": 300452,
+      "endpoint": "daily-summary",
+      "samples": 20,
+      "median_ms": 2.1,
+      "p95_ms": 2.5,
+      "max_ms": 3.9
+    },
+    {
+      "host": "new",
+      "table_rows": 300452,
+      "endpoint": "transfer",
+      "samples": 20,
+      "median_ms": 193.3,
+      "p95_ms": 205.0,
+      "max_ms": 207.9
+    },
+    {
+      "host": "old",
+      "table_rows": 300452,
+      "endpoint": "history",
+      "samples": 20,
+      "median_ms": 2710.5,
+      "p95_ms": 3047.3,
+      "max_ms": 3114.6
+    },
+    {
+      "host": "old",
+      "table_rows": 300452,
+      "endpoint": "daily-summary",
+      "samples": 20,
+      "median_ms": 2665.5,
+      "p95_ms": 2936.3,
+      "max_ms": 2936.4
+    },
+    {
+      "host": "old",
+      "table_rows": 300452,
+      "endpoint": "transfer",
+      "samples": 20,
+      "median_ms": 3971.1,
+      "p95_ms": 4450.5,
+      "max_ms": 4523.8
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+PASS: 40 money-flow/callback/validation regression checks -> /tmp/claude-0/dev/docs/evidence/2026-10-22/money-flow-results.json
+PASS: 17 production controller transaction-boundary checks.
+PASS: 15 provider checks; Google claims/signatures and VNPay canonicalization/tampering verified.
+PASS: 4 frontend transport scenarios: wrong PIN keeps session; expired session clears; network retry reuses key; concurrent submission sends once.
+PASS: 92 HTTP checks; concurrent transfers conserve balances; reset token is single-use; admin/ownership boundaries verified.
+PASS: 144 HTTP checks; VNPay success/failure/signature/amount/replay/ownership, profile and idempotency verified.
+✓ built in 6.50s

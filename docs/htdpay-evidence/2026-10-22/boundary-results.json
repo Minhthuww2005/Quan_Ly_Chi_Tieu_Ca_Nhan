@@ -1,0 +1,75 @@
+{
+  "generatedAt": "2026-10-22T16:29:26.9653136+00:00",
+  "passed": 17,
+  "scope": "production WalletControllerBase with DefaultHttpContext and recording repository; no real HTTP, database, authentication or provider settlement",
+  "results": [
+    {
+      "name": "GET /api/wallet selects read connection",
+      "status": "passed"
+    },
+    {
+      "name": "GET /api/payments/orders selects read connection",
+      "status": "passed"
+    },
+    {
+      "name": "GET /api/payments/vnpay/verify selects read connection",
+      "status": "passed"
+    },
+    {
+      "name": "GET /api/payments/vnpay/verify/ selects read connection",
+      "status": "passed"
+    },
+    {
+      "name": "GET /api/payments/vnpay/ipn selects write transaction",
+      "status": "passed"
+    },
+    {
+      "name": "GET /api/payments/vnpay/ipn/ selects write transaction",
+      "status": "passed"
+    },
+    {
+      "name": "GET /api/payments/vnpay/ipn/// selects write transaction",
+      "status": "passed"
+    },
+    {
+      "name": "GET /api/payments//vnpay/ipn selects write transaction",
+      "status": "passed"
+    },
+    {
+      "name": "GET /API/payments/vnpay/ipn/ selects write transaction",
+      "status": "passed"
+    },
+    {
+      "name": "GET /api/Payments/vnpay/ipn/ selects write transaction",
+      "status": "passed"
+    },
+    {
+      "name": "GET /api/payments/VNPAY/IPN selects write transaction",
+      "status": "passed"
+    },
+    {
+      "name": "GET /api/payments/vnpay/ipn/extra selects write transaction",
+      "status": "passed"
+    },
+    {
+      "name": "GET /api/payments/vnpay/ipn-lookalike selects read connection",
+      "status": "passed"
+    },
+    {
+      "name": "POST /api/wallet selects write transaction",
+      "status": "passed"
+    },
+    {
+      "name": "PUT /api/auth/profile selects write transaction",
+      "status": "passed"
+    },
+    {
+      "name": "DELETE /api/cards/1 selects write transaction",
+      "status": "passed"
+    },
+    {
+      "name": "HEAD /api/payments/vnpay/ipn selects write transaction",
+      "status": "passed"
+    }
+  ]
+}

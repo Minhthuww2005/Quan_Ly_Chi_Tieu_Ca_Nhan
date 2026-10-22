@@ -1,6 +1,11 @@
-# HTD PAY — kiểm thử ngày 13/10/2026
+# HTD PAY — kiểm thử
 
-## Kết quả đã chạy
+> **Cập nhật 22/10/2026 (nhánh `fix/htdpay-money-flow`):** đã sửa các lỗi luồng tiền, callback VNPay hết hạn và typed
+> validation; thêm đo dữ liệu lớn và CI cho ví. Kết quả mới nhất: 40 kiểm tra hồi quy và 144 kiểm tra HTTP đạt.
+> Chi tiết ở `docs/HTDPAY_FIXES.md`, output đã niêm phong ở `docs/htdpay-evidence/2026-10-22/`. Phần bên dưới là kết quả ngày 13/10.
+
+## Kết quả ngày 13/10/2026
+
 
 - ASP.NET Core build: thành công, 0 lỗi, 0 cảnh báo.
 - TypeScript: thành công. Vite production build: thành công; còn cảnh báo bundle lớn (874 kB trước gzip).

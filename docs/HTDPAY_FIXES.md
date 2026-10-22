@@ -49,4 +49,42 @@ Phép đo: `scripts/wallet-scale-benchmark.py`. Kết quả nằm trong mục 6.
 
 ## 6. Kết quả kiểm thử (22/10/2026, máy Linux, PostgreSQL 16 local, .NET 10.0.113)
 
-Xem `docs/evidence/` (đã commit, kèm `SHA256SUMS`).
+Bằng chứng: `docs/htdpay-evidence/2026-10-22/` (đã commit cùng `MANIFEST.md` và `SHA256SUMS`, source `81e9b1f`).
+
+| Bộ kiểm thử | Trước sửa | Sau sửa |
+|---|---|---|
+| `WalletMoneyFlowTests` (mới) | — | 40/40 |
+| HTTP smoke + extended (PostgreSQL) | 137 | 144/144 (thêm 7 ca cho hợp đồng mới) |
+| `WalletBoundaryLabs` / `WalletProviderTests` / transport | 17 / 15 / 4 | 17 / 15 / 4 |
+
+Một test (`SentToday`) đã được thử đột biến: đưa lại logic cũ thì test báo FAILED. Như vậy test thực sự bắt được lỗi.
+
+**Đo theo kích thước bảng `transactions`** (median ms, 20 mẫu mỗi ô, cùng một database):
+
+| Số dòng | Lịch sử (cũ → mới) | Daily summary (cũ → mới) | Chuyển tiền (cũ → mới) |
+|---:|---:|---:|---:|
+| 212 | 12,4 → 3,0 | 9,6 → 2,8 | 306 → 196 |
+| 10.292 | 98,5 → 2,9 | 84,8 → 2,0 | 306 → 194 |
+| 100.372 | 921 → 3,8 | 857 → 2,6 | 1.356 → 196 |
+| 300.452 | 2.711 → 3,0 | 2.666 → 2,1 | 3.971 → 193 |
+
+Bản cũ tăng tuyến tính theo số dòng, vì mỗi request tải và parse toàn bộ bảng. Bản mới gần như không đổi.
+Chuyển tiền của bản mới khoảng 195 ms, phần lớn là BCrypt xác minh PIN.
+
+## 7. Chạy lại
+
+```bash
+dotnet run --project scripts/WalletMoneyFlowTests
+# API QA cổng 5082 (scripts/start-wallet.ps1 -Local -Port 5082 -TestProviders), rồi:
+python scripts/wallet-extended-tests.py
+# Đo dữ liệu lớn (chỉ local QA; cần psql và biến PG*):
+python scripts/wallet-scale-benchmark.py --host new=http://localhost:5082/api --sizes 0,10000,100000
+```
+
+## 8. Thay đổi hợp đồng API cần biết
+
+- Mọi POST/PUT tài chính phải có header `Idempotency-Key`. `wallet-web` đã gửi sẵn; Postman hoặc script tự viết phải thêm header này.
+- Loại vay hợp lệ: Vay tiêu dùng, Vay mua xe, Vay mua nhà, Vay kinh doanh. Trường `interestRate` client gửi lên bị bỏ qua.
+- `PUT /investments/update` chỉ dành cho admin. `POST /investments/sell` không còn dùng `sellPrice`.
+- `GET /bank-accounts/search` chỉ dành cho admin.
+- Lỗi validation có thêm `errors: { field: [message] }`; `message` vẫn là lỗi đầu tiên, nên frontend hiện tại vẫn hiển thị đúng.
