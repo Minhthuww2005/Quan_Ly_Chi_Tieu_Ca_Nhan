@@ -71,6 +71,10 @@ Một test (`SentToday`) đã được thử đột biến: đưa lại logic c�
 Bản cũ tăng tuyến tính theo số dòng, vì mỗi request tải và parse toàn bộ bảng. Bản mới gần như không đổi.
 Chuyển tiền của bản mới khoảng 195 ms, phần lớn là BCrypt xác minh PIN.
 
+**Tải đồng thời** (`docs/htdpay-evidence/2026-10-23/`, 23/10/2026): 1/10/25/50 lệnh chuyển tiền cùng lúc, 5 lượt mỗi mức,
+430/430 thành công, số dư được bảo toàn. Throughput dừng ở khoảng 5 req/s; median tăng từ 191 ms (1 lệnh) lên
+5.045 ms (50 lệnh), vì mọi lệnh ghi xếp hàng sau advisory lock toàn cục và bước BCrypt xác minh PIN (~190 ms) nằm trong vùng giữ khóa.
+
 ## 7. Chạy lại
 
 ```bash
@@ -79,6 +83,8 @@ dotnet run --project scripts/WalletMoneyFlowTests
 python scripts/wallet-extended-tests.py
 # Đo dữ liệu lớn (chỉ local QA; cần psql và biến PG*):
 python scripts/wallet-scale-benchmark.py --host new=http://localhost:5082/api --sizes 0,10000,100000
+# Tải đồng thời (chỉ local QA):
+python scripts/wallet-concurrency-benchmark.py --base http://localhost:5082/api --levels 1,10,25,50 --rounds 5
 ```
 
 ## 8. Thay đổi hợp đồng API cần biết

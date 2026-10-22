@@ -1,0 +1,6 @@
+level=  1 ok=   5/5       4.7 req/s median=191.3 ms p95=290.8 ms
+level= 10 ok=  50/50      5.1 req/s median=1070.4 ms p95=1969.3 ms
+level= 25 ok= 125/125     5.2 req/s median=2507.9 ms p95=4647.5 ms
+level= 50 ok= 250/250     5.0 req/s median=5044.5 ms p95=9722.4 ms
+Conservation: total unchanged=True; each sender debited exactly once per success=True
+
