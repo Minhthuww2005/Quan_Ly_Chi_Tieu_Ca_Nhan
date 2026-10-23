@@ -89,6 +89,9 @@ image = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAD
 photos = {'front_image': image, 'back_image': image, 'face_image': image, 'has_biometric': True}
 call('PATCH', f'/kyc/update-biometric/{first}', photos, other_token, status=403)
 review = call('PATCH', f'/kyc/update-biometric/{first}', photos, token)['kyc']
+listed = next(r for r in call('GET', '/admin/kyc/requests', token=admin_token)['requests'] if str(r['verification_id']) == str(suite['kyc']))
+assert listed['front_image'] == '' and listed['has_images'], 'KYC list must not carry the base64 photos'
+assert call('GET', f"/admin/kyc/detail/{suite['kyc']}", token=admin_token)['request']['front_image'] == image, 'KYC detail returns the photos'
 assert review['status'] == 'submitted' and review['photo_review_status'] == 'pending' and not review['has_biometric']
 call('POST', f'/admin/kyc/approve/{suite["kyc"]}', token=admin_token)
 assert call('GET', f'/kyc/status/{first}', token=token)['kyc']['photo_review_status'] == 'approved'
@@ -98,6 +101,22 @@ policy = call('POST', '/insurance/create', {'user_id': first, 'type': 'Mô phỏ
 assert call('GET', f'/wallet/{first}', token=token)['wallet']['balance'] == before - 1000000
 call('POST', '/insurance/renew', {'user_id': first, 'id': policy, 'term': 1}, token)
 assert call('GET', f'/wallet/{first}', token=token)['wallet']['balance'] == before - 1500000
+
+# Repeated wrong PIN / password lock the account for 15 minutes (separate QA user).
+lock_email = f'qa-wallet-{stamp}-lock@example.test'
+lock_phone = '09' + str(int(stamp[-7:]) * 10 + 7).zfill(8)
+lock_id = call('POST', '/auth/register', {'name': 'QA Lock', 'email': lock_email, 'phone': lock_phone, 'password': 'QA-Wallet@123'}, status=201)['userId']
+lock_token = call('POST', '/auth/login', {'identifier': lock_email, 'password': 'QA-Wallet@123'})['token']
+call('POST', '/auth/set-pin', {'userId': lock_id, 'pinCode': '123456'}, lock_token)
+wrong_pin = {'from_user_id': lock_id, 'to_phone': other_phone, 'amount': 10000, 'pin': '000000'}
+for _ in range(4):
+    call('POST', '/transactions/transfer', wrong_pin, lock_token, status=401)
+assert call('POST', '/transactions/transfer', wrong_pin, lock_token, status=429)['code'] == 'PIN_LOCKED'
+call('POST', '/transactions/transfer', {**wrong_pin, 'pin': '123456'}, lock_token, status=429)
+for _ in range(4):
+    call('POST', '/auth/login', {'identifier': lock_email, 'password': 'wrong'}, status=401)
+assert call('POST', '/auth/login', {'identifier': lock_email, 'password': 'wrong'}, status=429)['code'] == 'LOGIN_LOCKED'
+call('POST', '/auth/login', {'identifier': lock_email, 'password': 'QA-Wallet@123'}, status=429)
 
 path = pathlib.Path('docs/wallet-test-results'); path.mkdir(exist_ok=True)
 (path / 'extended-smoke.json').write_text(json.dumps({'passed': len(results), 'checks': results, 'provider_callback_mode': 'independently signed local fixtures; not a real VNPay bank transaction'}, ensure_ascii=False, indent=2), encoding='utf-8')

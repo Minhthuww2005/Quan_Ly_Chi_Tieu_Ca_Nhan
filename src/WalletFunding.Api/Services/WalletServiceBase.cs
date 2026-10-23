@@ -86,7 +86,8 @@ public abstract class WalletServiceBase(IWalletRepository repository, IConfigura
     private static string JsonName<T>(string member) =>
         typeof(T).GetProperty(member)?.GetCustomAttributes(typeof(JsonPropertyNameAttribute), false).OfType<JsonPropertyNameAttribute>().FirstOrDefault()?.Name ?? member;
 
-    protected async Task<JsonObject> Find(string table, string field, string value) => (await store.All(table)).FirstOrDefault(x => J.Str(x, field) == value) ?? throw new ApiError(404, "Không tìm thấy dữ liệu");
+    // Reads only the matching row (tracked for Commit) instead of the whole table.
+    protected async Task<JsonObject> Find(string table, string field, string value) => await store.FindOne(table, field, value) ?? throw new ApiError(404, "Không tìm thấy dữ liệu");
     protected async Task<JsonObject> User(int id) => await Find("users", "user_id", id.ToString());
     protected async Task<JsonObject> Wallet(int id) => await Find("wallets", "user_id", id.ToString());
     protected void Own(int id) => Require(id == UserId || Admin, "Không có quyền truy cập", 403);
@@ -129,10 +130,28 @@ public abstract class WalletServiceBase(IWalletRepository repository, IConfigura
         Require(!Blocked(user), "Tài khoản đã bị khóa", 403);
         Require(!string.IsNullOrEmpty(J.Str(user, "pinHash")), "Bạn chưa thiết lập mã PIN");
         var hash = J.Str(user, "pinHash");
+        var key = "pin:" + J.Str(user, "user_id");
+        var attempts = await store.GetAttempts(key);
+        if (attempts.Locked) throw Locked(attempts, "Nhập sai PIN quá nhiều lần", "PIN_LOCKED");
         var preVerified = verifiedPin is { } v && v.UserId == J.Int(user, "user_id") && v.Hash == hash && v.Pin == pin;
-        Require(preVerified || Verify(pin, hash), "Mã PIN không đúng", 401, "INVALID_PIN");
+        if (!preVerified && !Verify(pin, hash))
+        {
+            // Recorded on a separate connection, so the count survives the rollback of this request.
+            var failed = await store.RecordFailure(key, MaxFailedAttempts, LockDuration);
+            if (failed.Locked) throw Locked(failed, "Nhập sai PIN quá nhiều lần", "PIN_LOCKED");
+            throw new ApiError(401, $"Mã PIN không đúng (còn {MaxFailedAttempts - failed.Failures} lần thử)", "INVALID_PIN");
+        }
+        if (attempts.Failures > 0) await store.ClearAttempts(key);
         await Task.CompletedTask;
     }
+    protected const int MaxFailedAttempts = 5;
+    protected static readonly TimeSpan LockDuration = TimeSpan.FromMinutes(15);
+    protected static ApiError Locked(AuthAttempts attempts, string reason, string code)
+    {
+        var minutes = Math.Max(1, (int)Math.Ceiling((attempts.LockedUntil!.Value - DateTimeOffset.UtcNow).TotalMinutes));
+        return new ApiError(429, $"{reason}. Vui lòng thử lại sau {minutes} phút", code);
+    }
+
     protected async Task<ServiceResponse> ExecuteWithReceipt(WalletRequest context, Func<Task<JsonObject>> operation)
     {
         await Prepare(context);
@@ -146,7 +165,7 @@ public abstract class WalletServiceBase(IWalletRepository repository, IConfigura
             Require(key.Length is >= 8 and <= 128, "Idempotency-Key không hợp lệ");
             receiptKey = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(UserId + ":" + Method + ":" + context.Path + ":" + key)));
             fingerprint = Fingerprint(body);
-            var receipt = (await store.All("payments")).FirstOrDefault(x => J.Str(x, "kind") == "request_receipt" && J.Str(x, "request_key") == receiptKey);
+            var receipt = await store.FindOne("payments", "request_key", receiptKey);
             if (receipt != null)
             {
                 Require(J.Str(receipt, "fingerprint") == fingerprint, "Mã yêu cầu đã dùng cho dữ liệu khác", 409);

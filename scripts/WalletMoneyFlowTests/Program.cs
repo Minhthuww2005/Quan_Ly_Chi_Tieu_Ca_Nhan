@@ -38,7 +38,7 @@ var pinHash = BCrypt.Net.BCrypt.HashPassword(Pin, 4);
 
 void Seed()
 {
-    store.Tables.Clear();
+    store.Tables.Clear(); store.Attempts.Clear();
     store.Tables["users"] =
     [
         J.Obj(new { user_id = 1, name = "Sender", phone = "0900000001", role = "user", kycTier = "TIER_1", status = "active", pinHash }),
@@ -82,6 +82,7 @@ TransactionService Tx() => new(store, config, protection, http, environment);
 FinanceService Finance() => new(store, config, protection, http, environment);
 PaymentService Payments() => new(store, config, protection, http, environment, gateway);
 BankingService Banking() => new(store, config, protection, http, environment);
+AdministrationService Admin() => new(store, config, protection, http, environment);
 
 // ---------- 1. Investments: the client can no longer choose the credited amount ----------
 Seed();
@@ -285,6 +286,54 @@ try { Run(new TransactionsController(new TransactionService(pinRepo, config, pro
 catch (ApiError e) { Check(e.Status == 401 && e.Code == "INVALID_PIN" && Balance(1) == before, "PIN changed between pre-check and lock is verified again and rejected; balance unchanged"); }
 pinRepo.OnBegin = null;
 
+// ---------- 12. Lockout after repeated wrong PIN / password ----------
+Seed();
+before = Balance(1);
+var lockResults = new List<int>();
+for (var i = 0; i < 5; i++) lockResults.Add((await Call(Tx(), "POST", "/api/transactions/transfer", new { to_phone = "0900000002", amount = 10_000, pin = "000000" }, 1)).Status);
+var whileLocked = await Call(Tx(), "POST", "/api/transactions/transfer", new { to_phone = "0900000002", amount = 10_000, pin = Pin }, 1);
+Check(lockResults.Take(4).All(x => x == 401) && lockResults[4] == 429 && whileLocked.Status == 429 && J.Str(whileLocked.Body, "code") == "PIN_LOCKED" && Balance(1) == before, "5 wrong PINs lock PIN use (429 PIN_LOCKED), even the correct PIN is refused while locked; no debit");
+store.Attempts["pin:1"] = new AuthAttempts(5, DateTimeOffset.UtcNow.AddSeconds(-1));
+var afterLock = await Call(Tx(), "POST", "/api/transactions/transfer", new { to_phone = "0900000002", amount = 10_000, pin = Pin }, 1);
+Check(afterLock.Status == 200 && !store.Attempts.ContainsKey("pin:1"), "After the lock expires the correct PIN works and the counter is cleared");
+var oneWrong = await Call(Tx(), "POST", "/api/transactions/transfer", new { to_phone = "0900000002", amount = 10_000, pin = "000000" }, 1);
+Check(oneWrong.Status == 401 && J.Str(oneWrong.Body, "message").Contains("còn 4 lần"), "Wrong PIN message tells how many attempts remain");
+
+Seed();
+store.Tables["users"][1]["password"] = BCrypt.Net.BCrypt.HashPassword("QA-Pass@123", 4); store.Tables["users"][1]["email"] = "receiver@example.test";
+AuthService Auth(GoogleIdentity? g = null) => new(store, config, protection, http, environment, new StubGoogle(g ?? new GoogleIdentity("sub", "x@example.test", "X", null)));
+var loginCodes = new List<int>();
+for (var i = 0; i < 5; i++) loginCodes.Add((await Call(Auth(), "POST", "/api/auth/login", new { identifier = "RECEIVER@example.test", password = "wrong" }, 0)).Status);
+var loginLocked = await Call(Auth(), "POST", "/api/auth/login", new { identifier = "receiver@example.test", password = "QA-Pass@123" }, 0);
+Check(loginCodes.Take(4).All(x => x == 401) && loginCodes[4] == 429 && loginLocked.Status == 429 && J.Str(loginLocked.Body, "code") == "LOGIN_LOCKED", "5 wrong passwords lock the identifier (case-insensitive) for login");
+store.Attempts.Clear();
+var loginOk = await Call(Auth(), "POST", "/api/auth/login", new { identifier = "0900000002", password = "QA-Pass@123" }, 0);
+Check(loginOk.Status == 200 && J.Str(loginOk.Body, "token").Length > 0, "Login by phone still works");
+
+// ---------- 13. Google sign-in never takes over a password account ----------
+var takeover = await Call(Auth(new GoogleIdentity("google-sub-1", "receiver@example.test", "Receiver", null)), "POST", "/api/auth/google", new { credential = "x" }, 0);
+Check(takeover.Status == 409 && J.Str(takeover.Body, "code") == "GOOGLE_LINK_REQUIRED" && J.Str(store.Tables["users"][1], "googleId") == "", "Google with the email of a password account -> 409, account not linked");
+var fresh = await Call(Auth(new GoogleIdentity("google-sub-2", "new.google@example.test", "New", null)), "POST", "/api/auth/google", new { credential = "x" }, 0);
+var googleAgain = await Call(Auth(new GoogleIdentity("google-sub-2", "new.google@example.test", "New", null)), "POST", "/api/auth/google", new { credential = "x" }, 0);
+Check(fresh.Status == 200 && googleAgain.Status == 200, "A Google-created account signs in again with the same subject");
+
+// ---------- 14. Admin read models (same shapes; KYC list without photos) ----------
+Seed();
+const string Photo = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==";
+store.Tables["kycprofiles"] = [J.Obj(new { kyc_id = 1, user_id = 2, full_name = "Receiver", status = "submitted", front_image = Photo, back_image = Photo, face_image = Photo })];
+await Call(Tx(), "POST", "/api/transactions/transfer", new { to_phone = "0900000002", amount = 20_000, pin = Pin }, 1);
+var adminStats = await Call(Admin(), "GET", "/api/admin/stats", null, 3, key: null);
+var adminUsers = await Call(Admin(), "GET", "/api/admin/users", null, 3, key: null, query: new() { ["limit"] = "2", ["page"] = "1" });
+var adminTx = await Call(Admin(), "GET", "/api/admin/transactions", null, 3, key: null);
+var kycList = await Call(Admin(), "GET", "/api/admin/kyc/requests", null, 3, key: null);
+var kycDetail = await Call(Admin(), "GET", "/api/admin/kyc/detail/1", null, 3, key: null);
+var firstKyc = kycList.Body["requests"]!.AsArray()[0]!.AsObject();
+Check(J.Int(adminStats.Body["stats"]!.AsObject(), "totalUsers") == 3 && J.Int(adminStats.Body["stats"]!.AsObject(), "pendingKYC") == 1
+      && adminUsers.Body["users"]!.AsArray().Count == 2 && J.Int(adminUsers.Body["pagination"]!.AsObject(), "total") == 3
+      && J.Money(adminTx.Body["stats"]!.AsObject(), "totalVolume") == 20_000 && J.Int(adminTx.Body["stats"]!.AsObject(), "total") == 2, "Admin stats, users page and transaction stats keep their shapes");
+Check(J.Str(firstKyc, "front_image") == "" && J.Bool(firstKyc, "has_images") && J.Str(kycDetail.Body["request"]!.AsObject(), "front_image") == Photo && J.Str(firstKyc, "user_name") == "Receiver",
+      "KYC list omits photos (has_images=true); GET /admin/kyc/detail/{id} returns them");
+
 var output = Path.GetFullPath(args.FirstOrDefault() ?? "docs/wallet-test-results/money-flow-results.json");
 Directory.CreateDirectory(Path.GetDirectoryName(output)!);
 await File.WriteAllTextAsync(output, JsonSerializer.Serialize(new { generatedAt = DateTimeOffset.UtcNow, passed = results.Count, scope = "production services/controller with in-memory repository; no PostgreSQL, network or real provider", results }, new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }));
@@ -300,6 +349,21 @@ sealed class MemoryRepository : IWalletRepository
     public async Task<string> NextCode(string table, string prefix) => prefix + ((await All(table)).Count + 1).ToString("D4");
     public Task Commit() => Task.CompletedTask;
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    // Same rules as the PostgreSQL authattempts table.
+    public Dictionary<string, AuthAttempts> Attempts { get; } = [];
+    public Task<AuthAttempts> GetAttempts(string key) => Task.FromResult(Attempts.GetValueOrDefault(key) ?? new AuthAttempts(0, null));
+    public Task<AuthAttempts> RecordFailure(string key, int maxFailures, TimeSpan lockFor)
+    {
+        var old = Attempts.GetValueOrDefault(key);
+        var failures = old == null || old.LockedUntil <= DateTimeOffset.UtcNow ? 1 : old.Failures + 1;
+        return Task.FromResult(Attempts[key] = new AuthAttempts(failures, failures >= maxFailures ? DateTimeOffset.UtcNow + lockFor : null));
+    }
+    public Task ClearAttempts(string key) { Attempts.Remove(key); return Task.CompletedTask; }
+}
+
+sealed class StubGoogle(GoogleIdentity identity) : IGoogleIdentityVerifier
+{
+    public Task<GoogleIdentity> VerifyAsync(string credential) => Task.FromResult(identity);
 }
 
 sealed class OrderRepository(MemoryRepository inner, List<string> order) : IWalletRepository

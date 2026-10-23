@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.DataProtection;
 
 namespace WalletFunding.Api;
 
-public sealed class PostgresWalletRepository(NpgsqlDataSource source) : IWalletRepository
+public sealed class PostgresWalletRepository(NpgsqlDataSource source) : IWalletRepository, IWalletAdminReads
 {
     public static readonly string[] Tables = ["users", "wallets", "transactions", "cards", "linkedbanks", "bankaccounts", "supportedbanks", "kycprofiles", "savingsaccounts", "investments", "loanaccounts", "insurances", "contacts", "notifications", "merchants", "billers", "tokens", "gatewaytransactions", "securitylogs", "payments", "personalinformations", "simpletransactions", "simplecards", "simpleinvestments", "simplesavings", "simpleinsurances", "simplemerchants", "simplebillers", "simplenotifications", "simpleloans", "simplecontacts"];
     private NpgsqlConnection? connection;
@@ -12,6 +12,8 @@ public sealed class PostgresWalletRepository(NpgsqlDataSource source) : IWalletR
     private readonly Dictionary<string, List<JsonObject>> cache = [];
     private readonly Dictionary<string, string> originals = [];
     // Rows added to a table that this request never loaded: inserted on Commit without reading the table.
+    // Rows loaded one by one (FindOne) from a table that is not fully cached; tracked for Commit like cached rows.
+    private readonly Dictionary<string, Dictionary<string, JsonObject>> partial = [];
     private readonly Dictionary<string, List<JsonObject>> pending = [];
     private readonly Dictionary<string, int> allocated = [];
 
@@ -41,6 +43,12 @@ public sealed class PostgresWalletRepository(NpgsqlDataSource source) : IWalletR
             CREATE UNIQUE INDEX IF NOT EXISTS ux_htd_wallet_id ON htdpay.wallets ((data->>'wallet_id'));
             CREATE UNIQUE INDEX IF NOT EXISTS ux_htd_transaction_id ON htdpay.transactions ((data->>'trans_id'));
             CREATE INDEX IF NOT EXISTS ix_htd_transaction_wallet ON htdpay.transactions ((data->>'wallet_id'), (data->>'timestamp'));
+            CREATE INDEX IF NOT EXISTS ix_htd_transaction_time ON htdpay.transactions ((COALESCE(data->>'timestamp','')));
+            CREATE INDEX IF NOT EXISTS ix_htd_payment_request ON htdpay.payments ((data->>'request_key'));
+            CREATE INDEX IF NOT EXISTS ix_htd_payment_order ON htdpay.payments ((data->>'order_id'));
+            CREATE INDEX IF NOT EXISTS ix_htd_kyc_id ON htdpay.kycprofiles ((data->>'kyc_id'));
+            CREATE INDEX IF NOT EXISTS ix_htd_kyc_user ON htdpay.kycprofiles ((data->>'user_id'));
+            CREATE INDEX IF NOT EXISTS ix_htd_kyc_hash ON htdpay.kycprofiles ((data->>'national_id_hash'));
             CREATE INDEX IF NOT EXISTS ix_htd_transaction_number ON htdpay.transactions ((CASE WHEN data->>'trans_id' ~ '^[0-9]{1,9}$' THEN (data->>'trans_id')::int END));
             CREATE UNIQUE INDEX IF NOT EXISTS ux_htd_bank_code ON htdpay.supportedbanks ((data->>'bank_code'));
             CREATE UNIQUE INDEX IF NOT EXISTS ux_htd_bank_account ON htdpay.bankaccounts ((data->>'bank_code'), (data->>'account_number'));
@@ -112,13 +120,186 @@ public sealed class PostgresWalletRepository(NpgsqlDataSource source) : IWalletR
         await using var cmd = new NpgsqlCommand($"SELECT record_key,data::text FROM htdpay.{table}", connection!, transaction);
         await using var reader = await cmd.ExecuteReaderAsync();
         var result = new List<JsonObject>();
+        partial.Remove(table, out var tracked);
         while (await reader.ReadAsync())
         {
-            var key = reader.GetString(0); var json = reader.GetString(1); var d = JsonNode.Parse(json)!.AsObject();
+            var key = reader.GetString(0);
+            // A row already loaded by FindOne keeps its instance (and in-request changes) and its original snapshot.
+            if (tracked != null && tracked.TryGetValue(key, out var known)) { result.Add(known); continue; }
+            var d = JsonNode.Parse(reader.GetString(1))!.AsObject();
             d["_id"] = key; result.Add(d); originals[table + "/" + key] = d.ToJsonString();
         }
         if (pending.Remove(table, out var added)) result.AddRange(added);
         return cache[table] = result;
+    }
+
+    public async Task<JsonObject?> FindOne(string table, string field, string value, bool ignoreCase = false)
+    {
+        if (!Tables.Contains(table) || !System.Text.RegularExpressions.Regex.IsMatch(field, "^[a-zA-Z_]{1,40}$")) throw new InvalidOperationException("Unknown table or field");
+        var comparison = ignoreCase ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        if (cache.TryGetValue(table, out var loaded)) return loaded.FirstOrDefault(x => string.Equals(J.Str(x, field), value, comparison));
+        var condition = ignoreCase ? $"lower(data->>'{field}') = lower(@value)" : $"data->>'{field}' = @value";
+        await using (var cmd = new NpgsqlCommand($"SELECT record_key,data::text FROM htdpay.{table} WHERE {condition} ORDER BY created_at, ctid LIMIT 1", connection!, transaction))
+        {
+            cmd.Parameters.AddWithValue("value", value);
+            await using var reader = await cmd.ExecuteReaderAsync();
+            if (await reader.ReadAsync())
+            {
+                var key = reader.GetString(0);
+                var rows = partial.TryGetValue(table, out var p) ? p : partial[table] = [];
+                if (rows.TryGetValue(key, out var known)) return known;
+                var d = JsonNode.Parse(reader.GetString(1))!.AsObject(); d["_id"] = key;
+                originals[table + "/" + key] = d.ToJsonString(); rows[key] = d;
+                return d;
+            }
+        }
+        return pending.GetValueOrDefault(table)?.FirstOrDefault(x => string.Equals(J.Str(x, field), value, comparison));
+    }
+
+    // ---- admin read models (read-only; no cache, no tracking) ----
+    private const string Blocked = "lower(COALESCE(u.data->>'accountStatus', u.data->>'status', 'active')) IN ('blocked','closed','frozen','suspicious','inactive','suspended')";
+    // JSON numbers are cast directly (cheap); numeric strings from imported data are still accepted.
+    private static string Num(string field) =>
+        $"(CASE jsonb_typeof(data->'{field}') WHEN 'number' THEN (data->>'{field}')::numeric " +
+        $"WHEN 'string' THEN (CASE WHEN data->>'{field}' ~ '^-?[0-9]+(\\.[0-9]+)?([eE][-+]?[0-9]+)?$' THEN (data->>'{field}')::numeric ELSE 0 END) ELSE 0 END)";
+
+    private async Task<List<JsonObject>> Rows(string sql, Action<NpgsqlParameterCollection>? bind = null)
+    {
+        await using var cmd = new NpgsqlCommand(sql, connection!, transaction);
+        bind?.Invoke(cmd.Parameters);
+        await using var reader = await cmd.ExecuteReaderAsync();
+        var list = new List<JsonObject>();
+        while (await reader.ReadAsync())
+        {
+            var d = JsonNode.Parse(reader.GetString(0))!.AsObject();
+            for (var i = 1; i < reader.FieldCount; i++) d[reader.GetName(i)] = reader.IsDBNull(i) ? null : JsonValue.Create(reader.GetValue(i).ToString());
+            list.Add(d);
+        }
+        return list;
+    }
+
+    public async Task<JsonObject> AdminStats(string today)
+    {
+        var row = (await Rows($"""
+            SELECT jsonb_build_object()::text,
+              (SELECT count(*) FROM htdpay.users) AS total_users,
+              (SELECT count(*) FROM htdpay.users u WHERE NOT ({Blocked})) AS active_users,
+              (SELECT count(*) FROM htdpay.wallets) AS total_wallets,
+              (SELECT COALESCE(sum({Num("balance")}), 0) FROM htdpay.wallets) AS total_balance,
+              (SELECT count(*) FROM htdpay.transactions) AS total_transactions,
+              (SELECT count(*) FROM htdpay.kycprofiles WHERE data->>'status' IN ('submitted','pending')) AS pending_kyc,
+              (SELECT count(*) FROM htdpay.kycprofiles WHERE data->>'status' = 'verified') AS verified_kyc,
+              (SELECT count(*) FROM htdpay.cards) AS total_cards,
+              (SELECT count(*) FROM htdpay.bankaccounts) AS total_bank_accounts
+            """))[0];
+        return J.Obj(new
+        {
+            totalUsers = int.Parse(J.Str(row, "total_users")), activeUsers = int.Parse(J.Str(row, "active_users")), totalWallets = int.Parse(J.Str(row, "total_wallets")),
+            totalBalance = J.Money(row, "total_balance"), totalTransactions = int.Parse(J.Str(row, "total_transactions")), pendingKYC = int.Parse(J.Str(row, "pending_kyc")),
+            verifiedKYC = int.Parse(J.Str(row, "verified_kyc")), totalCards = int.Parse(J.Str(row, "total_cards")), totalBankAccounts = int.Parse(J.Str(row, "total_bank_accounts")),
+        });
+    }
+
+    public async Task<(List<JsonObject> Rows, int Total)> AdminUsers(int offset, int limit)
+    {
+        var rows = await Rows($"""
+            SELECT u.data::text, w.data->>'balance' AS _balance,
+              CASE WHEN w.record_key IS NULL THEN 0 ELSE (SELECT count(*) FROM htdpay.transactions t WHERE t.data->>'wallet_id' = w.data->>'wallet_id') END AS _transaction_count,
+              (SELECT k.data->>'status' FROM htdpay.kycprofiles k WHERE k.owner_id = u.owner_id ORDER BY k.created_at DESC, k.ctid DESC LIMIT 1) AS _kyc_status
+            FROM htdpay.users u
+            LEFT JOIN htdpay.wallets w ON w.data->>'user_id' = u.data->>'user_id'
+            ORDER BY COALESCE(u.data->>'created_at', '') DESC, u.record_key
+            LIMIT @limit OFFSET @offset
+            """, p => { p.AddWithValue("limit", limit); p.AddWithValue("offset", offset); });
+        await using var count = new NpgsqlCommand("SELECT count(*) FROM htdpay.users", connection!, transaction);
+        return (rows, Convert.ToInt32(await count.ExecuteScalarAsync()));
+    }
+
+    public async Task<(List<JsonObject> Rows, int Total, JsonObject Stats)> AdminTransactions(int offset, int limit, string today)
+    {
+        var rows = await Rows("""
+            SELECT t.data::text, u.data->>'name' AS _sender_name
+            FROM (SELECT * FROM htdpay.transactions ORDER BY COALESCE(data->>'timestamp', '') DESC, record_key LIMIT @limit OFFSET @offset) t
+            LEFT JOIN htdpay.wallets w ON w.data->>'wallet_id' = t.data->>'wallet_id'
+            LEFT JOIN htdpay.users u ON u.data->>'user_id' = w.data->>'user_id'
+            ORDER BY COALESCE(t.data->>'timestamp', '') DESC, t.record_key
+            """, p => { p.AddWithValue("limit", limit); p.AddWithValue("offset", offset); });
+        var amount = Num("amount"); var fee = Num("fee");
+        var stats = (await Rows($"""
+            SELECT jsonb_build_object()::text,
+              count(*) AS total,
+              count(*) FILTER (WHERE data->>'status' IN ('success','completed')) AS completed,
+              count(*) FILTER (WHERE data->>'status' = 'pending') AS pending,
+              count(*) FILTER (WHERE data->>'status' = 'failed') AS failed,
+              COALESCE(sum(-{amount}) FILTER (WHERE data->>'status' IN ('success','completed') AND {amount} < 0), 0) AS total_volume,
+              COALESCE(sum({fee}) FILTER (WHERE data->>'status' IN ('success','completed')), 0) AS total_fees,
+              count(*) FILTER (WHERE data->>'timestamp' LIKE @today || '%') AS today_transactions,
+              COALESCE(sum(-{amount}) FILTER (WHERE data->>'status' IN ('success','completed') AND data->>'timestamp' LIKE @today || '%' AND {amount} < 0), 0) AS today_volume
+            FROM htdpay.transactions
+            """, p => p.AddWithValue("today", today)))[0];
+        return (rows, int.Parse(J.Str(stats, "total")), J.Obj(new
+        {
+            total = int.Parse(J.Str(stats, "total")), completed = int.Parse(J.Str(stats, "completed")), pending = int.Parse(J.Str(stats, "pending")), failed = int.Parse(J.Str(stats, "failed")),
+            totalVolume = J.Money(stats, "total_volume"), totalFees = J.Money(stats, "total_fees"), todayTransactions = int.Parse(J.Str(stats, "today_transactions")), todayVolume = J.Money(stats, "today_volume"),
+        }));
+    }
+
+    public async Task<List<JsonObject>> AdminKyc(bool pendingOnly) => await Rows($"""
+        SELECT (k.data - 'front_image' - 'back_image' - 'face_image')::text, u.data->>'name' AS _user_name, u.data->>'email' AS _user_email,
+               (k.data ? 'front_image' OR k.data ? 'back_image' OR k.data ? 'face_image') AS _has_images
+        FROM htdpay.kycprofiles k
+        LEFT JOIN htdpay.users u ON u.data->>'user_id' = k.data->>'user_id'
+        {(pendingOnly ? "WHERE k.data->>'status' IN ('pending','submitted')" : "")}
+        ORDER BY k.created_at, k.ctid
+        """);
+
+    // ---- failed authentication attempts (own connection, autocommit) ----
+    private static int attemptsTableReady;
+    private async Task<NpgsqlConnection> AttemptsConnection()
+    {
+        var c = await source.OpenConnectionAsync();
+        if (Volatile.Read(ref attemptsTableReady) == 0)
+        {
+            await using var ddl = new NpgsqlCommand("CREATE SCHEMA IF NOT EXISTS htdpay; CREATE TABLE IF NOT EXISTS htdpay.authattempts (key text PRIMARY KEY, failures int NOT NULL, locked_until timestamptz, updated_at timestamptz NOT NULL)", c);
+            await ddl.ExecuteNonQueryAsync(); Volatile.Write(ref attemptsTableReady, 1);
+        }
+        return c;
+    }
+    private static async Task<AuthAttempts> ReadAttempts(NpgsqlCommand cmd)
+    {
+        await using var reader = await cmd.ExecuteReaderAsync();
+        if (!await reader.ReadAsync()) return new AuthAttempts(0, null);
+        return new AuthAttempts(reader.GetInt32(0), reader.IsDBNull(1) ? null : reader.GetFieldValue<DateTimeOffset>(1));
+    }
+    public async Task<AuthAttempts> GetAttempts(string key)
+    {
+        await using var c = await AttemptsConnection();
+        await using var cmd = new NpgsqlCommand("SELECT failures, locked_until FROM htdpay.authattempts WHERE key=@k", c);
+        cmd.Parameters.AddWithValue("k", key);
+        return await ReadAttempts(cmd);
+    }
+    public async Task<AuthAttempts> RecordFailure(string key, int maxFailures, TimeSpan lockFor)
+    {
+        await using var c = await AttemptsConnection();
+        // Count restarts after an expired lock or after the lock window passes without new failures.
+        await using var cmd = new NpgsqlCommand("""
+            INSERT INTO htdpay.authattempts AS a (key, failures, locked_until, updated_at)
+            VALUES (@k, 1, CASE WHEN 1 >= @max THEN now() + @lock END, now())
+            ON CONFLICT (key) DO UPDATE SET
+              failures = CASE WHEN a.locked_until <= now() OR a.updated_at < now() - @lock THEN 1 ELSE a.failures + 1 END,
+              locked_until = CASE WHEN (CASE WHEN a.locked_until <= now() OR a.updated_at < now() - @lock THEN 1 ELSE a.failures + 1 END) >= @max
+                                  THEN now() + @lock ELSE NULL END,
+              updated_at = now()
+            RETURNING failures, locked_until
+            """, c);
+        cmd.Parameters.AddWithValue("k", key); cmd.Parameters.AddWithValue("max", maxFailures); cmd.Parameters.AddWithValue("lock", lockFor);
+        return await ReadAttempts(cmd);
+    }
+    public async Task ClearAttempts(string key)
+    {
+        await using var c = await AttemptsConnection();
+        await using var cmd = new NpgsqlCommand("DELETE FROM htdpay.authattempts WHERE key=@k", c);
+        cmd.Parameters.AddWithValue("k", key); await cmd.ExecuteNonQueryAsync();
     }
 
     public async Task<JsonObject?> Peek(string table, string field, string value)
@@ -135,12 +316,18 @@ public sealed class PostgresWalletRepository(NpgsqlDataSource source) : IWalletR
     {
         if (!Tables.Contains(table) || !System.Text.RegularExpressions.Regex.IsMatch(field, "^[a-z_]{1,40}$")) throw new InvalidOperationException("Unknown table or field");
         if (cache.TryGetValue(table, out var loaded)) return loaded.Where(x => J.Str(x, field) == value).ToList();
+        var tracked = partial.GetValueOrDefault(table);
         // Field name is whitelisted above and written literally so the expression index can be used.
-        await using var cmd = new NpgsqlCommand($"SELECT record_key,data::text FROM htdpay.{table} WHERE data->>'{field}' = @value", connection!, transaction);
+        await using var cmd = new NpgsqlCommand($"SELECT record_key,data::text FROM htdpay.{table} WHERE data->>'{field}' = @value ORDER BY created_at, ctid", connection!, transaction);
         cmd.Parameters.AddWithValue("value", value);
         await using var reader = await cmd.ExecuteReaderAsync();
         var result = new List<JsonObject>();
-        while (await reader.ReadAsync()) { var d = JsonNode.Parse(reader.GetString(1))!.AsObject(); d["_id"] = reader.GetString(0); result.Add(d); }
+        while (await reader.ReadAsync())
+        {
+            var key = reader.GetString(0);
+            if (tracked != null && tracked.TryGetValue(key, out var known)) { result.Add(known); continue; }
+            var d = JsonNode.Parse(reader.GetString(1))!.AsObject(); d["_id"] = key; result.Add(d);
+        }
         // Read-only snapshot: not cached, so Commit never treats unloaded rows as deleted.
         if (pending.TryGetValue(table, out var added)) result.AddRange(added.Where(x => J.Str(x, field) == value));
         return result;
@@ -198,6 +385,14 @@ public sealed class PostgresWalletRepository(NpgsqlDataSource source) : IWalletR
                 cmd.Parameters.AddWithValue("id", key); cmd.Parameters.AddWithValue("data", json); await cmd.ExecuteNonQueryAsync();
             }
         }
+        foreach (var (table, rows) in partial)
+            foreach (var (key, d) in rows)
+            {
+                var json = d.ToJsonString();
+                if (originals.GetValueOrDefault(table + "/" + key) == json) continue;
+                await using var cmd = new NpgsqlCommand($"UPDATE htdpay.{table} SET data=@data::jsonb WHERE record_key=@id", connection!, transaction);
+                cmd.Parameters.AddWithValue("id", key); cmd.Parameters.AddWithValue("data", json); await cmd.ExecuteNonQueryAsync();
+            }
         await transaction.CommitAsync();
     }
 

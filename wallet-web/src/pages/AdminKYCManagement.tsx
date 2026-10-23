@@ -105,10 +105,17 @@ export default function AdminKYCManagement() {
     setFilteredRequests(filtered);
   };
 
-  const handleViewDetail = (request: KYCRequest) => {
+  const handleViewDetail = async (request: KYCRequest) => {
     setSelectedRequest(request);
     setShowDetailModal(true);
     setRejectionReason('');
+    // The list omits the base64 photos; load them only for the profile being reviewed.
+    try {
+      const response = await axios.get(`/api/admin/kyc/detail/${request.verification_id}`);
+      if (response.data.success) setSelectedRequest({ ...request, ...response.data.request });
+    } catch (error) {
+      console.error('Error fetching KYC detail:', error);
+    }
   };
 
   const handleViewImage = (imageData: string, title: string) => {

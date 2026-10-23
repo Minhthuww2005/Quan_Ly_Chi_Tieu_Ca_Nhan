@@ -27,7 +27,8 @@ public sealed class AuthService(IWalletRepository repository, IConfiguration con
             {
                 var phone = J.Str(body, "phone").Trim();
                 Require(System.Text.RegularExpressions.Regex.IsMatch(phone, @"^\+?[0-9]{9,15}$"), "Số điện thoại không hợp lệ");
-                Require(!(await store.All("users")).Any(x => J.Int(x, "user_id") != UserId && J.Str(x, "phone") == phone), "Số điện thoại đã được sử dụng", 409);
+                var owner = await store.FindOne("users", "phone", phone);
+                Require(owner == null || J.Int(owner, "user_id") == UserId, "Số điện thoại đã được sử dụng", 409);
                 user["phone"] = phone;
             }
             if (body["settings"] is JsonObject settings) user["settings"] = J.Obj(new { notificationsEnabled = J.Bool(settings, "notificationsEnabled"), hideBalance = J.Bool(settings, "hideBalance") });
@@ -43,7 +44,7 @@ public sealed class AuthService(IWalletRepository repository, IConfiguration con
             Require(new System.ComponentModel.DataAnnotations.EmailAddressAttribute().IsValid(email), "Email không hợp lệ");
             Require(System.Text.RegularExpressions.Regex.IsMatch(phone, @"^\+?[0-9]{9,15}$"), "Số điện thoại không hợp lệ");
             Require(J.Str(body, "password").Length >= 6 && J.Str(body, "password").Length <= 72, "Mật khẩu phải có 6–72 ký tự");
-            Require(!(await store.All("users")).Any(x => J.Str(x, "email").Equals(email, StringComparison.OrdinalIgnoreCase) || J.Str(x, "phone") == phone), "Email hoặc số điện thoại đã được sử dụng", 409);
+            Require(await store.FindOne("users", "email", email, ignoreCase: true) == null && await store.FindOne("users", "phone", phone) == null, "Email hoặc số điện thoại đã được sử dụng", 409);
             var user = J.Obj(new { user_id = await store.Next("users", "user_id"), name = J.Str(body, "name"), email, phone, password = BCrypt.Net.BCrypt.HashPassword(J.Str(body, "password")), role = "user", status = "active", accountStatus = "active", authProvider = "local", kycTier = "TIER_1", created_at = Now, updated_at = Now });
             await store.Add("users", user); await CreateWallet(J.Int(user, "user_id")); StatusCode = 201;
             return J.Obj(new { success = true, message = "Đăng ký thành công", userId = J.Int(user, "user_id") });
@@ -52,7 +53,11 @@ public sealed class AuthService(IWalletRepository repository, IConfiguration con
         {
             Required("credential"); var identity = await google.VerifyAsync(J.Str(body, "credential"));
             var email = identity.Email;
-            var user = (await store.All("users")).FirstOrDefault(x => J.Str(x, "email").Equals(email, StringComparison.OrdinalIgnoreCase));
+            var user = await store.FindOne("users", "email", email, ignoreCase: true);
+            // A Google sign-in never takes over an account that was registered with a password:
+            // only a Google-created account, or one already linked to this Google subject, may sign in this way.
+            if (user != null && J.Str(user, "googleId").Length == 0 && J.Str(user, "authProvider", "local") != "google")
+                throw new ApiError(409, "Email này đã đăng ký bằng mật khẩu. Vui lòng đăng nhập bằng email và mật khẩu.", "GOOGLE_LINK_REQUIRED");
             if (user == null)
             {
                 user = J.Obj(new { user_id = await store.Next("users", "user_id"), email, name = identity.Name, avatar = identity.Picture, authProvider = "google", googleId = identity.Subject, role = "user", status = "active", accountStatus = "active", kycTier = "TIER_1", created_at = Now });
@@ -67,7 +72,7 @@ public sealed class AuthService(IWalletRepository repository, IConfiguration con
         if (Action == "forgot-password")
         {
             Required("email"); var result = Ok("Nếu email tồn tại, yêu cầu khôi phục đã được tạo");
-            var user = (await store.All("users")).FirstOrDefault(x => J.Str(x, "email").Equals(J.Str(body, "email"), StringComparison.OrdinalIgnoreCase));
+            var user = await store.FindOne("users", "email", J.Str(body, "email"), ignoreCase: true);
             if (user != null)
             {
                 var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
@@ -104,8 +109,19 @@ public sealed class AuthService(IWalletRepository repository, IConfiguration con
     {
         var identifier = J.Str(body, "identifier", J.Str(body, "email")).Trim(); var password = J.Str(body, "password");
         Require(identifier.Length > 0 && password.Length > 0, "Vui lòng nhập đầy đủ thông tin");
-        var user = (await store.All("users")).FirstOrDefault(x => (J.Str(x, "email").Equals(identifier, StringComparison.OrdinalIgnoreCase) || !admin && J.Str(x, "phone") == identifier) && (!admin || J.Str(x, "role") == "admin"));
-        Require(user != null && Verify(password, J.Str(user, "password")), "Email/SĐT hoặc mật khẩu không đúng", 401);
+        var key = (admin ? "admin-login:" : "login:") + identifier.ToLowerInvariant();
+        var attempts = await store.GetAttempts(key);
+        if (attempts.Locked) throw Locked(attempts, "Đăng nhập sai quá nhiều lần", "LOGIN_LOCKED");
+        var user = await store.FindOne("users", "email", identifier, ignoreCase: true) ?? (admin ? null : await store.FindOne("users", "phone", identifier));
+        if (admin && user != null && J.Str(user, "role") != "admin") user = null;
+        if (user == null || !Verify(password, J.Str(user, "password")))
+        {
+            // Counted outside the request transaction; 5 failures lock this identifier for 15 minutes.
+            var failed = await store.RecordFailure(key, MaxFailedAttempts, LockDuration);
+            if (failed.Locked) throw Locked(failed, "Đăng nhập sai quá nhiều lần", "LOGIN_LOCKED");
+            throw new ApiError(401, "Email/SĐT hoặc mật khẩu không đúng", "VALIDATION_ERROR");
+        }
+        if (attempts.Failures > 0) await store.ClearAttempts(key);
         Require(!Blocked(user!), "Tài khoản đã bị khóa", 403);
         var result = J.Obj(new { success = true, message = "Đăng nhập thành công", token = Token(user!) });
         var publicUser = LoginUser(user!); if (admin) publicUser["admin_id"] = J.Int(user!, "user_id"); result[admin ? "admin" : "user"] = publicUser;
