@@ -1,0 +1,55 @@
+{
+  "generatedAt": "2026-10-23T06:47:53Z",
+  "base": "http://localhost:5083/api",
+  "rounds": 5,
+  "amount": 10000,
+  "method": "level = simultaneous transfers (thread barrier), one sender wallet and one loopback source IP per virtual user; client wall time; local PostgreSQL",
+  "machine": "Linux-6.18.44-fc-v153-x86_64-with-glibc2.39",
+  "cpu_count": 2,
+  "summary": [
+    {
+      "level": 1,
+      "requests": 5,
+      "ok": 5,
+      "errors": 0,
+      "throughput_rps": 4.4,
+      "median_ms": 223.3,
+      "p95_ms": 279.1,
+      "max_ms": 279.1
+    },
+    {
+      "level": 10,
+      "requests": 50,
+      "ok": 50,
+      "errors": 0,
+      "throughput_rps": 4.9,
+      "median_ms": 1118.8,
+      "p95_ms": 2050.4,
+      "max_ms": 2080.2
+    },
+    {
+      "level": 25,
+      "requests": 125,
+      "ok": 125,
+      "errors": 0,
+      "throughput_rps": 4.8,
+      "median_ms": 2718.8,
+      "p95_ms": 5037.2,
+      "max_ms": 5259.2
+    },
+    {
+      "level": 50,
+      "requests": 250,
+      "ok": 250,
+      "errors": 0,
+      "throughput_rps": 4.7,
+      "median_ms": 5318.0,
+      "p95_ms": 10197.6,
+      "max_ms": 10701.6
+    }
+  ],
+  "conservation": {
+    "total_unchanged": true,
+    "each_sender_debited_exactly": true
+  }
+}

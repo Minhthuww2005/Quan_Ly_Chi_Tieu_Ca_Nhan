@@ -75,6 +75,11 @@ Chuyển tiền của bản mới khoảng 195 ms, phần lớn là BCrypt xác 
 430/430 thành công, số dư được bảo toàn. Throughput dừng ở khoảng 5 req/s; median tăng từ 191 ms (1 lệnh) lên
 5.045 ms (50 lệnh), vì mọi lệnh ghi xếp hàng sau advisory lock toàn cục và bước BCrypt xác minh PIN (~190 ms) nằm trong vùng giữ khóa.
 
+**Kiểm tra PIN trước khóa ghi** (`06ac030`, `docs/htdpay-evidence/2026-10-23-pin/`): BCrypt chạy trong `PrefetchAsync`
+trước khi lấy advisory lock; trong transaction chỉ so khớp hash đã lưu. Đo lại trên cùng máy với bản trước: throughput
+4.7–4.9 → 9.7–10.3 req/s, P95 ở 50 lệnh đồng thời 10.198 → 5.206 ms. Cùng commit: frontend đọc lãi suất từ
+`GET /api/loans/products` và `/api/savings/products`; sổ tiết kiệm linh hoạt tính lãi theo số tháng đã gửi. 45 kiểm tra hồi quy, 146 kiểm tra HTTP.
+
 ## 7. Chạy lại
 
 ```bash
