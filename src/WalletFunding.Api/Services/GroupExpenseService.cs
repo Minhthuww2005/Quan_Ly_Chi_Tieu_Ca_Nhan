@@ -5,9 +5,10 @@ namespace WalletFunding.Api;
 
 // A shared ledger: recording a cost never silently debits a personal wallet.
 public sealed class GroupExpenseService(IWalletRepository repository, IConfiguration configuration,
-    IDataProtectionProvider protection, IHttpClientFactory http, IHostEnvironment environment)
+    IDataProtectionProvider protection, IHttpClientFactory http, IHostEnvironment environment, IGroupReportCache? reportCache = null)
     : WalletServiceBase(repository, configuration, protection, http, environment)
 {
+    public string ReportCacheStatus { get; private set; } = "NOT-USED";
     public override Task<ServiceResponse> ExecuteAsync(WalletRequest context) => ExecuteWithReceipt(context, Handle);
 
     private async Task<JsonObject> Handle()
@@ -42,21 +43,28 @@ public sealed class GroupExpenseService(IWalletRepository repository, IConfigura
         var action = parts.ElementAtOrDefault(offset + 1) ?? "";
         var target = parts.ElementAtOrDefault(offset + 2) ?? "";
         Require(parts.Length <= offset + (action == "" ? 1 : target == "" ? 2 : 3), "Endpoint không tồn tại", 404);
-        var entries = (await store.All("expenseentries")).Where(x => J.Int(x, "group_id") == groupId && !J.Bool(x, "deleted")).ToArray();
         if (Method == "GET" && action == "")
         {
             var month = request.Query["month"];
             if (month == "") month = Today[..7];
             Require(DateOnly.TryParseExact(month + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _), "Tháng không hợp lệ");
-            var selected = entries.Where(x => J.Str(x, "date").StartsWith(month + "-", StringComparison.Ordinal)).OrderByDescending(x => J.Str(x, "date")).ThenByDescending(x => J.Int(x, "entry_id")).ToArray();
-            var income = selected.Where(x => J.Str(x, "kind") == "income").Sum(x => J.Money(x, "amount"));
-            var expense = selected.Where(x => J.Str(x, "kind") == "expense").Sum(x => J.Money(x, "amount"));
+            var cacheKey = $"htdpay:groups:v1:{groupId}:{J.Int(group!, "report_version")}:{month}";
+            var monthly = reportCache == null ? null : await reportCache.Get(cacheKey);
+            ReportCacheStatus = monthly == null ? "MISS" : "HIT";
+            if (monthly == null)
+            {
+                var selected = (await store.All("expenseentries")).Where(x => J.Int(x, "group_id") == groupId && !J.Bool(x, "deleted") && J.Str(x, "date").StartsWith(month + "-", StringComparison.Ordinal)).OrderByDescending(x => J.Str(x, "date")).ThenByDescending(x => J.Int(x, "entry_id")).ToArray();
+                var income = selected.Where(x => J.Str(x, "kind") == "income").Sum(x => J.Money(x, "amount"));
+                var expense = selected.Where(x => J.Str(x, "kind") == "expense").Sum(x => J.Money(x, "amount"));
+                monthly = J.Obj(new { entries = selected.Select(x => J.Public(x)).ToArray(), summary = new { income, expense, balance = income - expense, budget = J.Money(group!, "budget"), overBudget = J.Money(group!, "budget") > 0 && expense > J.Money(group!, "budget"), byCategory = selected.Where(x => J.Str(x, "kind") == "expense").GroupBy(x => J.Str(x, "category")).Select(g => new { category = g.Key, amount = g.Sum(x => J.Money(x, "amount")) }).ToArray() } });
+                if (reportCache == null || !await reportCache.Set(cacheKey, monthly)) ReportCacheStatus = "BYPASS";
+            }
             var users = await store.All("users");
             return J.Obj(new { success = true, group = J.Public(group!), canManage = own && !adminView, month,
                 members = members.Where(m => J.Int(m, "group_id") == groupId && J.Bool(m, "active")).Select(m => new { userId = J.Int(m, "user_id"), name = users.FirstOrDefault(u => J.Int(u, "user_id") == J.Int(m, "user_id")) is { } u ? J.Str(u, "name") : "Thành viên", isOwner = J.Int(m, "user_id") == J.Int(group!, "owner_id") }).ToArray(),
-                entries = selected.Select(x => J.Public(x)).ToArray(),
-                summary = new { income, expense, balance = income - expense, budget = J.Money(group!, "budget"), overBudget = J.Money(group!, "budget") > 0 && expense > J.Money(group!, "budget"), byCategory = selected.Where(x => J.Str(x, "kind") == "expense").GroupBy(x => J.Str(x, "category")).Select(g => new { category = g.Key, amount = g.Sum(x => J.Money(x, "amount")) }).ToArray() } });
+                entries = monthly["entries"]!.DeepClone(), summary = monthly["summary"]!.DeepClone() });
         }
+        var entries = (await store.All("expenseentries")).Where(x => J.Int(x, "group_id") == groupId && !J.Bool(x, "deleted")).ToArray();
         if (adminView)
         {
             Require(Method == "PATCH" && action == "status" && target == "", "Endpoint không tồn tại", 404);

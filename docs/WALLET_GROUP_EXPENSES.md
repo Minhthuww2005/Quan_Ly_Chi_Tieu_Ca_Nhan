@@ -26,7 +26,7 @@ Controller sử dụng transaction ghi và advisory lock đang có. Service ki�
 | GET `/api/admin/groups` và `/{id}` | Admin |
 | PATCH `/api/admin/groups/{id}/status` | Admin; body archived và version |
 
-GET chi tiết hỗ trợ `?month=yyyy-MM`, trả danh sách thành viên, các khoản trong tháng, tổng thu, tổng chi, chênh lệch, cảnh báo ngân sách và tổng chi theo danh mục. Bản đầu chưa có mời thành viên cần chấp nhận, chia nợ hoặc lịch thu chi định kỳ. Không dùng kết quả module này để khẳng định EF Core, Redis, SignalR hay worker đã tích hợp vào HTD PAY.
+GET chi tiết hỗ trợ `?month=yyyy-MM`, trả danh sách thành viên, các khoản trong tháng, tổng thu, tổng chi, chênh lệch, cảnh báo ngân sách và tổng chi theo danh mục. Bản đầu chưa có mời thành viên cần chấp nhận, chia nợ hoặc lịch thu chi định kỳ. Bản tích hợp tiếp theo dùng EF Core cho ba bảng nhóm, Redis cho báo cáo tháng, Channel/BackgroundService cho outbox và SignalR cho cập nhật client/admin. Xem HTDPAY_FRAMEWORK_INTEGRATION.md; không gán các kết quả của lab RevenueFlow cũ cho luồng này.
 
 ## Kiểm thử
 

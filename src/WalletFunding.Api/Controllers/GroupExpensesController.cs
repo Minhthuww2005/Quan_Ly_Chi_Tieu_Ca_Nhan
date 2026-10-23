@@ -9,5 +9,11 @@ public sealed class GroupExpensesController(GroupExpenseService service, IWallet
 {
     [AcceptVerbs("GET", "POST", "PATCH", "PUT", "DELETE")]
     [Route("{**path}")]
-    public Task<IActionResult> Execute() => ExecuteRequest();
+    public async Task<IActionResult> Execute()
+    {
+        var result = await ExecuteRequest();
+        Response.Headers["X-Group-Persistence"] = "EF-Core-PostgreSQL";
+        Response.Headers["X-Group-Cache"] = service.ReportCacheStatus;
+        return result;
+    }
 }

@@ -1,16 +1,18 @@
 using System.Text.Json.Nodes;
 using Npgsql;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.EntityFrameworkCore;
 
 namespace WalletFunding.Api;
 
-public sealed class PostgresWalletRepository(NpgsqlDataSource source) : IWalletRepository
+public sealed class PostgresWalletRepository(NpgsqlDataSource source, GroupEventQueue? events = null) : IWalletRepository
 {
     public static readonly string[] Tables = ["users", "wallets", "transactions", "cards", "linkedbanks", "bankaccounts", "supportedbanks", "kycprofiles", "savingsaccounts", "investments", "loanaccounts", "insurances", "contacts", "notifications", "merchants", "billers", "tokens", "gatewaytransactions", "securitylogs", "payments", "personalinformations", "simpletransactions", "simplecards", "simpleinvestments", "simplesavings", "simpleinsurances", "simplemerchants", "simplebillers", "simplenotifications", "simpleloans", "simplecontacts", "expensegroups", "expensemembers", "expenseentries"];
     private NpgsqlConnection? connection;
     private NpgsqlTransaction? transaction;
     private readonly Dictionary<string, List<JsonObject>> cache = [];
     private readonly Dictionary<string, string> originals = [];
+    private GroupExpensesDbContext? groupDb;
 
     public static async Task InitializeGroupExpenses(NpgsqlDataSource source)
     {
@@ -27,7 +29,14 @@ public sealed class PostgresWalletRepository(NpgsqlDataSource source) : IWalletR
             CREATE UNIQUE INDEX IF NOT EXISTS ux_expensemembers_user ON htdpay.expensemembers ((data->>'group_id'), (data->>'user_id'));
             CREATE UNIQUE INDEX IF NOT EXISTS ux_expenseentries_id ON htdpay.expenseentries ((data->>'entry_id'));
             CREATE INDEX IF NOT EXISTS ix_expenseentries_group_date ON htdpay.expenseentries ((data->>'group_id'), (data->>'date'));
+            CREATE TABLE IF NOT EXISTS htdpay.group_outbox (
+                event_id uuid PRIMARY KEY, group_id integer NOT NULL,
+                created_at timestamptz NOT NULL DEFAULT now(), processed_at timestamptz,
+                attempts integer NOT NULL DEFAULT 0, next_attempt_at timestamptz NOT NULL DEFAULT now()
+            );
+            CREATE INDEX IF NOT EXISTS ix_group_outbox_pending ON htdpay.group_outbox(next_attempt_at) WHERE processed_at IS NULL;
             INSERT INTO htdpay.schema_versions(version) VALUES (2) ON CONFLICT DO NOTHING;
+            INSERT INTO htdpay.schema_versions(version) VALUES (3) ON CONFLICT DO NOTHING;
             """, c, tx);
         await cmd.ExecuteNonQueryAsync(); await tx.CommitAsync();
     }
@@ -127,6 +136,18 @@ public sealed class PostgresWalletRepository(NpgsqlDataSource source) : IWalletR
     {
         if (!Tables.Contains(table)) throw new InvalidOperationException("Unknown table");
         if (cache.TryGetValue(table, out var found)) return found;
+        if (IsGroupTable(table))
+        {
+            var db = await GroupDb();
+            var docs = table switch
+            {
+                "expensegroups" => await ReadGroups<GroupTable>(db),
+                "expensemembers" => await ReadGroups<MemberTable>(db),
+                _ => await ReadGroups<EntryTable>(db)
+            };
+            foreach (var doc in docs) originals[table + "/" + J.Str(doc, "_id")] = doc.ToJsonString();
+            return cache[table] = docs;
+        }
         await using var cmd = new NpgsqlCommand($"SELECT record_key,data::text FROM htdpay.{table}", connection!, transaction);
         await using var reader = await cmd.ExecuteReaderAsync();
         var result = new List<JsonObject>();
@@ -150,12 +171,21 @@ public sealed class PostgresWalletRepository(NpgsqlDataSource source) : IWalletR
     public async Task Commit()
     {
         if (transaction == null) return;
+        var changedGroups = cache.Where(p => IsGroupTable(p.Key))
+            .SelectMany(p => p.Value.Where(d => originals.GetValueOrDefault(p.Key + "/" + J.Str(d, "_id")) != d.ToJsonString()))
+            .Select(d => J.Int(d, "group_id")).Where(id => id > 0).Distinct().ToArray();
+        // The report generation changes inside the same transaction as entries.
+        // An older cache key can never be reused after a committed write.
+        if (changedGroups.Length > 0)
+            foreach (var group in await All("expensegroups"))
+                if (changedGroups.Contains(J.Int(group, "group_id"))) group["report_version"] = J.Int(group, "report_version") + 1;
         foreach (var (table, docs) in cache)
         {
             var keys = docs.Select(d => J.Str(d, "_id")).ToHashSet();
             foreach (var old in originals.Keys.Where(k => k.StartsWith(table + "/")).ToArray())
                 if (!keys.Contains(old[(table.Length + 1)..]))
                 {
+                    if (IsGroupTable(table)) { TrackGroup(table, old[(table.Length + 1)..], "{}", EntityState.Deleted); continue; }
                     await using var del = new NpgsqlCommand($"DELETE FROM htdpay.{table} WHERE record_key=@id", connection!, transaction);
                     del.Parameters.AddWithValue("id", old[(table.Length + 1)..]); await del.ExecuteNonQueryAsync();
                 }
@@ -163,15 +193,53 @@ public sealed class PostgresWalletRepository(NpgsqlDataSource source) : IWalletR
             {
                 var key = J.Str(d, "_id"); var json = d.ToJsonString();
                 if (originals.GetValueOrDefault(table + "/" + key) == json) continue;
+                if (IsGroupTable(table))
+                {
+                    TrackGroup(table, key, json, originals.ContainsKey(table + "/" + key) ? EntityState.Modified : EntityState.Added);
+                    continue;
+                }
                 await using var cmd = new NpgsqlCommand($"INSERT INTO htdpay.{table}(record_key,data) VALUES (@id,@data::jsonb) ON CONFLICT(record_key) DO UPDATE SET data=excluded.data", connection!, transaction);
                 cmd.Parameters.AddWithValue("id", key); cmd.Parameters.AddWithValue("data", json); await cmd.ExecuteNonQueryAsync();
             }
         }
+        if (groupDb != null) await groupDb.SaveChangesAsync();
+        foreach (var id in changedGroups)
+        {
+            await using var cmd = new NpgsqlCommand("INSERT INTO htdpay.group_outbox(event_id,group_id) VALUES (@event,@group)", connection!, transaction);
+            cmd.Parameters.AddWithValue("event", Guid.NewGuid()); cmd.Parameters.AddWithValue("group", id); await cmd.ExecuteNonQueryAsync();
+        }
         await transaction.CommitAsync();
+        foreach (var id in changedGroups) events?.Signal(id);
     }
+
+    private static bool IsGroupTable(string table) => table is "expensegroups" or "expensemembers" or "expenseentries";
+    private async Task<GroupExpensesDbContext> GroupDb()
+    {
+        if (groupDb != null) return groupDb;
+        groupDb = new GroupExpensesDbContext(new DbContextOptionsBuilder<GroupExpensesDbContext>().UseNpgsql(connection!, contextOwnsConnection: false).Options);
+        if (transaction != null) await groupDb.Database.UseTransactionAsync(transaction);
+        return groupDb;
+    }
+    private static async Task<List<JsonObject>> ReadGroups<T>(GroupExpensesDbContext db) where T : class
+    {
+        var rows = await db.Set<GroupDocument<T>>().AsNoTracking().ToListAsync();
+        return rows.Select(row => { var d = JsonNode.Parse(row.Data)!.AsObject(); d["_id"] = row.Key; return d; }).ToList();
+    }
+    private void TrackGroup(string table, string key, string json, EntityState state)
+    {
+        switch (table)
+        {
+            case "expensegroups": Track<GroupTable>(key, json, state); break;
+            case "expensemembers": Track<MemberTable>(key, json, state); break;
+            case "expenseentries": Track<EntryTable>(key, json, state); break;
+        }
+    }
+    private void Track<T>(string key, string json, EntityState state) where T : class =>
+        groupDb!.Entry(new GroupDocument<T> { Key = key, Data = json }).State = state;
 
     public async ValueTask DisposeAsync()
     {
+        if (groupDb != null) await groupDb.DisposeAsync();
         if (transaction != null) await transaction.DisposeAsync();
         if (connection != null) await connection.DisposeAsync();
     }

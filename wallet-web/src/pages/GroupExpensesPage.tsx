@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
 import { Link } from 'react-router-dom';
 import { Users, Plus, ArrowLeft, Pencil, Trash2, Wallet, TrendingDown, TrendingUp, AlertTriangle } from 'lucide-react';
 import BottomNavigation from '../components/BottomNavigation';
@@ -26,6 +27,12 @@ export default function GroupExpensesPage({ admin = false }: { admin?: boolean }
   const [email, setEmail] = useState('');
   const [form, setForm] = useState(emptyEntry);
   const [editing, setEditing] = useState<Entry | null>(null);
+  const [liveStatus, setLiveStatus] = useState('Đang kết nối cập nhật trực tiếp…');
+  const refreshRef = useRef<() => Promise<void>>(async () => {});
+  const selectedRef = useRef(selected);
+  const monthRef = useRef(month);
+  const refreshSequence = useRef(0);
+  selectedRef.current = selected; monthRef.current = month;
   const userId = Number(JSON.parse(localStorage.getItem('userInfo') || '{}').user_id || 0);
 
   async function request(path: string, method = 'GET', body?: unknown) {
@@ -35,9 +42,43 @@ export default function GroupExpensesPage({ admin = false }: { admin?: boolean }
     return data;
   }
   async function refresh(id = selected) {
-    const list = await request(''); setGroups(list.groups);
-    if (id !== null) { const d = await request(`/${id}?month=${month}`); setDetail(d); }
+    const sequence = ++refreshSequence.current;
+    const requestedMonth = month;
+    const list = await request('');
+    if (sequence === refreshSequence.current) setGroups(list.groups);
+    if (id !== null) {
+      const d = await request(`/${id}?month=${requestedMonth}`);
+      if (sequence === refreshSequence.current && selectedRef.current === id && monthRef.current === requestedMonth) setDetail(d);
+    }
   }
+  refreshRef.current = () => refresh();
+  useEffect(() => {
+    let active = true;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    let changed: ReturnType<typeof setTimeout> | undefined;
+    const connection = new HubConnectionBuilder().withUrl('/hubs/groups', {
+      accessTokenFactory: () => localStorage.getItem(admin ? 'adminToken' : 'token') || '',
+    }).withAutomaticReconnect().configureLogging(LogLevel.Error).build();
+    const reload = () => {
+      if (active) refreshRef.current().catch(e => { if (active) setError(e.message); });
+    };
+    const scheduleReload = () => { clearTimeout(changed); changed = setTimeout(reload, 200); };
+    connection.on('GroupChanged', scheduleReload);
+    connection.onreconnecting(() => { if (active) setLiveStatus('Mất kết nối — đang kết nối lại…'); });
+    connection.onreconnected(() => { if (active) { setLiveStatus('Đang cập nhật trực tiếp'); reload(); } });
+    async function start() {
+      try {
+        await connection.start();
+        if (active) { setLiveStatus('Đang cập nhật trực tiếp'); reload(); }
+        else await connection.stop();
+      } catch {
+        if (active) { setLiveStatus('Chưa có cập nhật trực tiếp — vẫn có thể tải lại dữ liệu'); retry = setTimeout(start, 5000); }
+      }
+    }
+    connection.onclose(() => { if (active) { setLiveStatus('Đang kết nối lại…'); retry = setTimeout(start, 5000); } });
+    void start();
+    return () => { active = false; clearTimeout(retry); clearTimeout(changed); connection.off('GroupChanged', scheduleReload); void connection.stop(); };
+  }, [admin]);
   useEffect(() => {
     let active = true; setLoading(true); setError('');
     request('').then(d => { if (active) setGroups(d.groups); }).catch(e => { if (active) setError(e.message); }).finally(() => { if (active) setLoading(false); });
@@ -66,6 +107,7 @@ export default function GroupExpensesPage({ admin = false }: { admin?: boolean }
   return <div className="min-h-screen bg-slate-50 pb-28">
     <header className="bg-white border-b"><div className="max-w-7xl mx-auto p-5 flex items-center gap-4"><Link to={admin ? '/admin/dashboard' : '/wallet'} aria-label="Quay lại"><ArrowLeft /></Link><div><h1 className="text-2xl font-bold flex gap-2 items-center"><Users />{admin ? 'Quản trị chi tiêu nhóm' : 'Chi tiêu nhóm'}</h1><p className="text-slate-500 text-sm">Sổ thu chi chung · ngân sách theo tháng</p></div></div></header>
     <main className="max-w-7xl mx-auto p-4 md:p-6 space-y-4">
+      <div className="flex justify-between items-center gap-3 text-sm text-slate-500"><span role="status">{liveStatus}</span><Button variant="outline" size="sm" disabled={busy || loading} onClick={() => mutate(async () => { await refresh(); })}>Tải lại</Button></div>
       <p className="rounded-xl bg-blue-50 text-blue-900 p-4 text-sm">Các khoản ghi sổ giúp theo dõi thu chi của nhóm và không tự trừ tiền trong ví cá nhân.{admin && ' Quản trị viên xem dữ liệu và lưu trữ hoặc mở lại nhóm; không sửa các khoản thu chi của thành viên.'}</p>
       {error && <div role="alert" className="p-4 bg-red-50 text-red-800 rounded-xl">{error} <button className="underline ml-2" onClick={() => mutate(async () => { await refresh(); })}>Tải lại</button></div>}
       {notice && <div role="status" className="text-emerald-700">{notice}</div>}
