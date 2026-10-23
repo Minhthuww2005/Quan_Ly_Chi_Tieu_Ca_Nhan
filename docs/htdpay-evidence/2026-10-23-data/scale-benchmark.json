@@ -1,0 +1,306 @@
+{
+  "generatedAt": "2026-10-23T07:30:06Z",
+  "hosts": {
+    "new": "http://localhost:5082/api",
+    "old": "http://localhost:5083/api"
+  },
+  "samplesPerCell": 15,
+  "method": "client wall time per sequential request (urllib, no keep-alive), local PostgreSQL; synthetic rows belong to other wallets",
+  "machine": "Linux-6.18.44-fc-v153-x86_64-with-glibc2.39",
+  "summary": [
+    {
+      "host": "new",
+      "table_rows": 258,
+      "user_rows": 14,
+      "endpoint": "history",
+      "samples": 15,
+      "median_ms": 2.4,
+      "p95_ms": 3.9,
+      "max_ms": 8.8
+    },
+    {
+      "host": "new",
+      "table_rows": 258,
+      "user_rows": 14,
+      "endpoint": "transfer",
+      "samples": 15,
+      "median_ms": 193.8,
+      "p95_ms": 203.0,
+      "max_ms": 216.9
+    },
+    {
+      "host": "new",
+      "table_rows": 258,
+      "user_rows": 14,
+      "endpoint": "admin-stats",
+      "samples": 15,
+      "median_ms": 2.3,
+      "p95_ms": 3.3,
+      "max_ms": 4.0
+    },
+    {
+      "host": "new",
+      "table_rows": 258,
+      "user_rows": 14,
+      "endpoint": "admin-users",
+      "samples": 15,
+      "median_ms": 3.2,
+      "p95_ms": 5.2,
+      "max_ms": 5.3
+    },
+    {
+      "host": "new",
+      "table_rows": 258,
+      "user_rows": 14,
+      "endpoint": "admin-transactions",
+      "samples": 15,
+      "median_ms": 5.1,
+      "p95_ms": 8.0,
+      "max_ms": 8.6
+    },
+    {
+      "host": "old",
+      "table_rows": 258,
+      "user_rows": 14,
+      "endpoint": "history",
+      "samples": 15,
+      "median_ms": 2.1,
+      "p95_ms": 2.4,
+      "max_ms": 3.7
+    },
+    {
+      "host": "old",
+      "table_rows": 258,
+      "user_rows": 14,
+      "endpoint": "transfer",
+      "samples": 15,
+      "median_ms": 192.5,
+      "p95_ms": 197.3,
+      "max_ms": 203.9
+    },
+    {
+      "host": "old",
+      "table_rows": 258,
+      "user_rows": 14,
+      "endpoint": "admin-stats",
+      "samples": 15,
+      "median_ms": 4.8,
+      "p95_ms": 8.2,
+      "max_ms": 10.4
+    },
+    {
+      "host": "old",
+      "table_rows": 258,
+      "user_rows": 14,
+      "endpoint": "admin-users",
+      "samples": 15,
+      "median_ms": 6.0,
+      "p95_ms": 6.8,
+      "max_ms": 9.3
+    },
+    {
+      "host": "old",
+      "table_rows": 258,
+      "user_rows": 14,
+      "endpoint": "admin-transactions",
+      "samples": 15,
+      "median_ms": 10.2,
+      "p95_ms": 11.9,
+      "max_ms": 13.4
+    },
+    {
+      "host": "new",
+      "table_rows": 100318,
+      "user_rows": 10014,
+      "endpoint": "history",
+      "samples": 15,
+      "median_ms": 2.4,
+      "p95_ms": 4.0,
+      "max_ms": 4.8
+    },
+    {
+      "host": "new",
+      "table_rows": 100318,
+      "user_rows": 10014,
+      "endpoint": "transfer",
+      "samples": 15,
+      "median_ms": 197.8,
+      "p95_ms": 212.2,
+      "max_ms": 213.7
+    },
+    {
+      "host": "new",
+      "table_rows": 100318,
+      "user_rows": 10014,
+      "endpoint": "admin-stats",
+      "samples": 15,
+      "median_ms": 13.1,
+      "p95_ms": 18.2,
+      "max_ms": 19.1
+    },
+    {
+      "host": "new",
+      "table_rows": 100318,
+      "user_rows": 10014,
+      "endpoint": "admin-users",
+      "samples": 15,
+      "median_ms": 18.7,
+      "p95_ms": 23.1,
+      "max_ms": 26.5
+    },
+    {
+      "host": "new",
+      "table_rows": 100318,
+      "user_rows": 10014,
+      "endpoint": "admin-transactions",
+      "samples": 15,
+      "median_ms": 98.2,
+      "p95_ms": 116.0,
+      "max_ms": 117.8
+    },
+    {
+      "host": "old",
+      "table_rows": 100318,
+      "user_rows": 10014,
+      "endpoint": "history",
+      "samples": 15,
+      "median_ms": 61.4,
+      "p95_ms": 124.0,
+      "max_ms": 170.0
+    },
+    {
+      "host": "old",
+      "table_rows": 100318,
+      "user_rows": 10014,
+      "endpoint": "transfer",
+      "samples": 15,
+      "median_ms": 280.3,
+      "p95_ms": 360.4,
+      "max_ms": 401.5
+    },
+    {
+      "host": "old",
+      "table_rows": 100318,
+      "user_rows": 10014,
+      "endpoint": "admin-stats",
+      "samples": 15,
+      "median_ms": 812.3,
+      "p95_ms": 927.1,
+      "max_ms": 1095.7
+    },
+    {
+      "host": "old",
+      "table_rows": 100318,
+      "user_rows": 10014,
+      "endpoint": "admin-users",
+      "samples": 15,
+      "median_ms": 2261.5,
+      "p95_ms": 2369.5,
+      "max_ms": 2393.8
+    },
+    {
+      "host": "old",
+      "table_rows": 100318,
+      "endpoint": "admin-transactions",
+      "timeout": true,
+      "timeout_s": 60.0
+    },
+    {
+      "host": "new",
+      "table_rows": 300378,
+      "user_rows": 30014,
+      "endpoint": "history",
+      "samples": 15,
+      "median_ms": 2.4,
+      "p95_ms": 6.6,
+      "max_ms": 11.0
+    },
+    {
+      "host": "new",
+      "table_rows": 300378,
+      "user_rows": 30014,
+      "endpoint": "transfer",
+      "samples": 15,
+      "median_ms": 201.0,
+      "p95_ms": 233.8,
+      "max_ms": 261.4
+    },
+    {
+      "host": "new",
+      "table_rows": 300378,
+      "user_rows": 30014,
+      "endpoint": "admin-stats",
+      "samples": 15,
+      "median_ms": 60.7,
+      "p95_ms": 77.2,
+      "max_ms": 81.5
+    },
+    {
+      "host": "new",
+      "table_rows": 300378,
+      "user_rows": 30014,
+      "endpoint": "admin-users",
+      "samples": 15,
+      "median_ms": 57.4,
+      "p95_ms": 80.0,
+      "max_ms": 87.0
+    },
+    {
+      "host": "new",
+      "table_rows": 300378,
+      "user_rows": 30014,
+      "endpoint": "admin-transactions",
+      "samples": 15,
+      "median_ms": 373.4,
+      "p95_ms": 415.1,
+      "max_ms": 417.6
+    },
+    {
+      "host": "old",
+      "table_rows": 300378,
+      "user_rows": 30014,
+      "endpoint": "history",
+      "samples": 15,
+      "median_ms": 248.6,
+      "p95_ms": 445.0,
+      "max_ms": 496.9
+    },
+    {
+      "host": "old",
+      "table_rows": 300378,
+      "user_rows": 30014,
+      "endpoint": "transfer",
+      "samples": 15,
+      "median_ms": 555.6,
+      "p95_ms": 728.2,
+      "max_ms": 741.4
+    },
+    {
+      "host": "old",
+      "table_rows": 300378,
+      "user_rows": 30014,
+      "endpoint": "admin-stats",
+      "samples": 15,
+      "median_ms": 3375.3,
+      "p95_ms": 3646.1,
+      "max_ms": 4288.5
+    },
+    {
+      "host": "old",
+      "table_rows": 300378,
+      "user_rows": 30014,
+      "endpoint": "admin-users",
+      "samples": 15,
+      "median_ms": 7669.7,
+      "p95_ms": 8640.4,
+      "max_ms": 9297.5
+    },
+    {
+      "host": "old",
+      "table_rows": 300378,
+      "endpoint": "admin-transactions",
+      "timeout": true,
+      "note": "timed out at a smaller size"
+    }
+  ]
+}

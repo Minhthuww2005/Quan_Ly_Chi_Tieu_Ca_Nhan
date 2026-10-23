@@ -1,0 +1,31 @@
+ new rows=    258 history       median=     2.4 ms p95=     3.9 ms
+ new rows=    258 transfer      median=   193.8 ms p95=   203.0 ms
+ new rows=    258 admin-stats   median=     2.3 ms p95=     3.3 ms
+ new rows=    258 admin-users   median=     3.2 ms p95=     5.2 ms
+ new rows=    258 admin-transactions median=     5.1 ms p95=     8.0 ms
+ old rows=    258 history       median=     2.1 ms p95=     2.4 ms
+ old rows=    258 transfer      median=   192.5 ms p95=   197.3 ms
+ old rows=    258 admin-stats   median=     4.8 ms p95=     8.2 ms
+ old rows=    258 admin-users   median=     6.0 ms p95=     6.8 ms
+ old rows=    258 admin-transactions median=    10.2 ms p95=    11.9 ms
+ new rows= 100318 history       median=     2.4 ms p95=     4.0 ms
+ new rows= 100318 transfer      median=   197.8 ms p95=   212.2 ms
+ new rows= 100318 admin-stats   median=    13.1 ms p95=    18.2 ms
+ new rows= 100318 admin-users   median=    18.7 ms p95=    23.1 ms
+ new rows= 100318 admin-transactions median=    98.2 ms p95=   116.0 ms
+ old rows= 100318 history       median=    61.4 ms p95=   124.0 ms
+ old rows= 100318 transfer      median=   280.3 ms p95=   360.4 ms
+ old rows= 100318 admin-stats   median=   812.3 ms p95=   927.1 ms
+ old rows= 100318 admin-users   median=  2261.5 ms p95=  2369.5 ms
+ old rows= 100318 admin-transactions TIMEOUT (> 60 s)
+ new rows= 300378 history       median=     2.4 ms p95=     6.6 ms
+ new rows= 300378 transfer      median=   201.0 ms p95=   233.8 ms
+ new rows= 300378 admin-stats   median=    60.7 ms p95=    77.2 ms
+ new rows= 300378 admin-users   median=    57.4 ms p95=    80.0 ms
+ new rows= 300378 admin-transactions median=   373.4 ms p95=   415.1 ms
+ old rows= 300378 history       median=   248.6 ms p95=   445.0 ms
+ old rows= 300378 transfer      median=   555.6 ms p95=   728.2 ms
+ old rows= 300378 admin-stats   median=  3375.3 ms p95=  3646.1 ms
+ old rows= 300378 admin-users   median=  7669.7 ms p95=  8640.4 ms
+ old rows= 300378 admin-transactions skipped (timed out at a smaller size)
+Wrote /tmp/claude-0/bench2/scale-benchmark.json and raw samples CSV (421 samples).

@@ -29,6 +29,8 @@ luồng tiền, callback, typed validation và phép đo dữ liệu lớn; CI v
 - `bank-accounts/search` chỉ dành cho admin, để chặn dò tên và số tài khoản của người khác. `verify` chỉ trả các trường cần để xác nhận người nhận.
 - Gọi Binance ở `PrefetchAsync`, **trước** khi controller mở transaction ghi và giữ advisory lock toàn cục.
 - Swagger chỉ bật ở môi trường Development.
+- Khóa tạm sau 5 lần sai liên tiếp trong 15 phút: PIN (theo ví) và đăng nhập (theo email/số điện thoại, tách user và admin). Khi bị khóa trả 429 `PIN_LOCKED`/`LOGIN_LOCKED`; lỗi PIN sai báo số lần thử còn lại. Bộ đếm nằm ở bảng `htdpay.authattempts`, ghi bằng kết nối riêng nên không bị rollback cùng request lỗi.
+- Đăng nhập Google không tự gắn vào tài khoản email/mật khẩu có sẵn: trả 409 `GOOGLE_LINK_REQUIRED`, tránh chiếm tài khoản qua email trùng.
 
 ## 4. Typed validation
 
@@ -43,7 +45,9 @@ Route catch-all và JSON của frontend giữ nguyên, kể cả các alias như
 
 - `IWalletRepository.Where(table, field, value)`: PostgreSQL lọc bằng SQL, dùng index `ix_htd_transaction_wallet`. Lịch sử giao dịch và hạn mức ngày không còn tải toàn bảng `transactions`.
 - `Next()` (MAX+1) tính bằng SQL; dòng mới được ghi khi Commit mà không cần đọc toàn bảng. Bảng `transactions` có thêm index số cho `trans_id`.
-- Các trang admin thống kê (`AdministrationService`) vẫn đọc toàn bảng. Đây là giới hạn còn lại.
+- `FindOne(table, field, value)`: tìm người dùng theo email/số điện thoại, ví, receipt idempotency bằng một câu SQL `LIMIT 1` thay vì tải toàn bảng.
+- Trang admin (`AdministrationService`) dùng `IWalletAdminReads`: thống kê, danh sách người dùng, giao dịch và KYC tính bằng SQL có phân trang. Danh sách KYC không trả ảnh; ảnh lấy riêng qua `GET /api/admin/kyc/detail/{id}`.
+- Thêm index cho thời gian giao dịch, `payments.request_key`/`order_id` và các khóa tra cứu KYC.
 
 Phép đo: `scripts/wallet-scale-benchmark.py`. Kết quả nằm trong mục 6.
 
@@ -80,6 +84,17 @@ trước khi lấy advisory lock; trong transaction chỉ so khớp hash đã l�
 4.7–4.9 → 9.7–10.3 req/s, P95 ở 50 lệnh đồng thời 10.198 → 5.206 ms. Cùng commit: frontend đọc lãi suất từ
 `GET /api/loans/products` và `/api/savings/products`; sổ tiết kiệm linh hoạt tính lãi theo số tháng đã gửi. 45 kiểm tra hồi quy, 146 kiểm tra HTTP.
 
+**Đọc theo dòng và trang admin bằng SQL** (`8575b27`, `docs/htdpay-evidence/2026-10-23-data/`): 54 kiểm tra hồi quy,
+94 + 163 kiểm tra HTTP. Median ms, 15 mẫu mỗi ô, bản `84dcebe` → `8575b27`:
+
+| Endpoint | 258 dòng | 100.318 dòng | 300.378 dòng |
+|---|---:|---:|---:|
+| Lịch sử giao dịch | 2,1 → 2,4 | 61,4 → 2,4 | 248,6 → 2,4 |
+| Chuyển tiền | 192,5 → 193,8 | 280,3 → 197,8 | 555,6 → 201,0 |
+| Admin thống kê | 4,8 → 2,3 | 812,3 → 13,1 | 3.375,3 → 60,7 |
+| Admin người dùng (1 trang) | 6,0 → 3,2 | 2.261,5 → 18,7 | 7.669,7 → 57,4 |
+| Admin giao dịch (1 trang) | 10,2 → 5,1 | quá 60 s → 98,2 | không đo → 373,4 |
+
 ## 7. Chạy lại
 
 ```bash
@@ -87,7 +102,8 @@ dotnet run --project scripts/WalletMoneyFlowTests
 # API QA cổng 5082 (scripts/start-wallet.ps1 -Local -Port 5082 -TestProviders), rồi:
 python scripts/wallet-extended-tests.py
 # Đo dữ liệu lớn (chỉ local QA; cần psql và biến PG*):
-python scripts/wallet-scale-benchmark.py --host new=http://localhost:5082/api --sizes 0,10000,100000
+python scripts/wallet-scale-benchmark.py --host new=http://localhost:5082/api --sizes 0,10000,100000 \
+  --endpoints history,transfer,admin-stats,admin-users,admin-transactions --host old=http://localhost:5083/api
 # Tải đồng thời (chỉ local QA):
 python scripts/wallet-concurrency-benchmark.py --base http://localhost:5082/api --levels 1,10,25,50 --rounds 5
 ```
@@ -98,4 +114,6 @@ python scripts/wallet-concurrency-benchmark.py --base http://localhost:5082/api 
 - Loại vay hợp lệ: Vay tiêu dùng, Vay mua xe, Vay mua nhà, Vay kinh doanh. Trường `interestRate` client gửi lên bị bỏ qua.
 - `PUT /investments/update` chỉ dành cho admin. `POST /investments/sell` không còn dùng `sellPrice`.
 - `GET /bank-accounts/search` chỉ dành cho admin.
+- Sai PIN hoặc mật khẩu 5 lần liên tiếp bị khóa 15 phút (429). Đăng nhập Google trùng email tài khoản mật khẩu trả 409 `GOOGLE_LINK_REQUIRED`.
+- Danh sách KYC của admin không còn chứa ảnh; xem ảnh qua `GET /api/admin/kyc/detail/{id}`.
 - Lỗi validation có thêm `errors: { field: [message] }`; `message` vẫn là lỗi đầu tiên, nên frontend hiện tại vẫn hiển thị đúng.

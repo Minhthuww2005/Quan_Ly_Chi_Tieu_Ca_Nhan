@@ -1,0 +1,6 @@
+PASS: 54 money-flow/callback/validation regression checks -> money-flow-results.json
+PASS: 17 production controller transaction-boundary checks.
+PASS: 15 provider checks; Google claims/signatures and VNPay canonicalization/tampering verified.
+PASS: 4 frontend transport scenarios: wrong PIN keeps session; expired session clears; network retry reuses key; concurrent submission sends once.
+✓ built in 6.50s
+PASS: 94 HTTP checks (smoke); PASS: 163 HTTP checks (extended) on API 5082, fresh local PostgreSQL
