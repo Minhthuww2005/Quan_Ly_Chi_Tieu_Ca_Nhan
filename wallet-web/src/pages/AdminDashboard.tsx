@@ -175,6 +175,7 @@ export default function AdminDashboard() {
   };
 
   const menuItems = [
+    { path: '/admin/groups', icon: Users, label: 'Chi tiêu nhóm', description: 'Nhóm, thành viên và ngân sách' },
     { 
       path: '/admin/dashboard', 
       icon: LayoutDashboard, 

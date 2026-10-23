@@ -6,18 +6,40 @@ namespace WalletFunding.Api;
 
 public sealed class PostgresWalletRepository(NpgsqlDataSource source) : IWalletRepository
 {
-    public static readonly string[] Tables = ["users", "wallets", "transactions", "cards", "linkedbanks", "bankaccounts", "supportedbanks", "kycprofiles", "savingsaccounts", "investments", "loanaccounts", "insurances", "contacts", "notifications", "merchants", "billers", "tokens", "gatewaytransactions", "securitylogs", "payments", "personalinformations", "simpletransactions", "simplecards", "simpleinvestments", "simplesavings", "simpleinsurances", "simplemerchants", "simplebillers", "simplenotifications", "simpleloans", "simplecontacts"];
+    public static readonly string[] Tables = ["users", "wallets", "transactions", "cards", "linkedbanks", "bankaccounts", "supportedbanks", "kycprofiles", "savingsaccounts", "investments", "loanaccounts", "insurances", "contacts", "notifications", "merchants", "billers", "tokens", "gatewaytransactions", "securitylogs", "payments", "personalinformations", "simpletransactions", "simplecards", "simpleinvestments", "simplesavings", "simpleinsurances", "simplemerchants", "simplebillers", "simplenotifications", "simpleloans", "simplecontacts", "expensegroups", "expensemembers", "expenseentries"];
     private NpgsqlConnection? connection;
     private NpgsqlTransaction? transaction;
     private readonly Dictionary<string, List<JsonObject>> cache = [];
     private readonly Dictionary<string, string> originals = [];
+
+    public static async Task InitializeGroupExpenses(NpgsqlDataSource source)
+    {
+        await using var c = await source.OpenConnectionAsync();
+        await using var tx = await c.BeginTransactionAsync();
+        await using var cmd = new NpgsqlCommand("""
+            SELECT pg_advisory_xact_lock(72491001);
+            CREATE SCHEMA IF NOT EXISTS htdpay;
+            CREATE TABLE IF NOT EXISTS htdpay.schema_versions (version integer PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now());
+            CREATE TABLE IF NOT EXISTS htdpay.expensegroups (record_key text PRIMARY KEY, data jsonb NOT NULL CHECK(jsonb_typeof(data)='object'), created_at timestamptz NOT NULL DEFAULT now());
+            CREATE TABLE IF NOT EXISTS htdpay.expensemembers (record_key text PRIMARY KEY, data jsonb NOT NULL CHECK(jsonb_typeof(data)='object'), created_at timestamptz NOT NULL DEFAULT now());
+            CREATE TABLE IF NOT EXISTS htdpay.expenseentries (record_key text PRIMARY KEY, data jsonb NOT NULL CHECK(jsonb_typeof(data)='object'), created_at timestamptz NOT NULL DEFAULT now());
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_expensegroups_id ON htdpay.expensegroups ((data->>'group_id'));
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_expensemembers_user ON htdpay.expensemembers ((data->>'group_id'), (data->>'user_id'));
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_expenseentries_id ON htdpay.expenseentries ((data->>'entry_id'));
+            CREATE INDEX IF NOT EXISTS ix_expenseentries_group_date ON htdpay.expenseentries ((data->>'group_id'), (data->>'date'));
+            INSERT INTO htdpay.schema_versions(version) VALUES (2) ON CONFLICT DO NOTHING;
+            """, c, tx);
+        await cmd.ExecuteNonQueryAsync(); await tx.CommitAsync();
+    }
 
     public static async Task Initialize(NpgsqlDataSource source, string? importPath, IDataProtector protector)
     {
         await using var c = await source.OpenConnectionAsync();
         await using var tx = await c.BeginTransactionAsync();
         await using (var cmd = new NpgsqlCommand("SELECT pg_advisory_xact_lock(72491001); CREATE SCHEMA IF NOT EXISTS htdpay; CREATE TABLE IF NOT EXISTS htdpay.schema_versions (version integer PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now());", c, tx)) await cmd.ExecuteNonQueryAsync();
-        foreach (var table in Tables)
+        // Group tables have their own additive schema and indexes; they do not use
+        // the legacy wallet collection's generated owner_id column.
+        foreach (var table in Tables.Where(t => t is not ("expensegroups" or "expensemembers" or "expenseentries")))
         {
             var sql = $"""
                 CREATE TABLE IF NOT EXISTS htdpay.{table} (

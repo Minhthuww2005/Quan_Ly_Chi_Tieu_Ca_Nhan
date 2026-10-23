@@ -4,6 +4,10 @@ Bản HTD PAY chuyển từ đồ án Wallet-Funding sang ASP.NET Core và Neon 
 
 Ứng dụng quản lý doanh thu theo nhóm bằng ASP.NET Core 10, EF Core/Npgsql, PostgreSQL, Redis, React/TypeScript và SignalR. Bản tích hợp nằm trên nhánh `codex/integrate-revenueflow`, ghép `duy/core-auth`, `thanh/cache-query`, `thuw/queue-background`, `tuyen/realtime-options`.
 
+## Chi tiêu nhóm HTD PAY
+
+Client chọn **Nhóm** (`/groups`); admin chọn **Chi tiêu nhóm** (`/admin/groups`). Xem [hướng dẫn nhóm](docs/WALLET_GROUP_EXPENSES.md) về thành viên, ngân sách, ghi thu/chi và migration bổ sung.
+
 ## RevenueFlow: ứng dụng nghiên cứu có sẵn
 
 - REV-01: CRUD giao dịch Income, xóa mềm, kiểm tra quyền nhóm và RowVersion.

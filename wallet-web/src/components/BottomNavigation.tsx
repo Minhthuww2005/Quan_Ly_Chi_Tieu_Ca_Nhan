@@ -1,4 +1,4 @@
-import { Home, CreditCard, BarChart3, User } from 'lucide-react';
+import { Home, CreditCard, BarChart3, User, Users } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 export default function BottomNavigation() {
@@ -9,6 +9,7 @@ export default function BottomNavigation() {
     { id: 'home', label: 'Trang chủ', icon: Home, path: '/wallet' },
     { id: 'cards', label: 'Thẻ', icon: CreditCard, path: '/card-management' },
     { id: 'history', label: 'Lịch sử', icon: BarChart3, path: '/history' },
+    { id: 'groups', label: 'Nhóm', icon: Users, path: '/groups' },
     { id: 'profile', label: 'Cá nhân', icon: User, path: '/profile' },
   ];
 

@@ -27,6 +27,7 @@ builder.Services.AddScoped<BankingService>();
 builder.Services.AddScoped<FinanceService>();
 builder.Services.AddScoped<CatalogService>();
 builder.Services.AddScoped<PaymentService>();
+builder.Services.AddScoped<GroupExpenseService>();
 builder.Services.AddSingleton<IVnpayGateway, VnpayGateway>();
 builder.Services.AddHttpClient();
 builder.Services.AddHttpClient("GoogleMetadata", client => client.Timeout = TimeSpan.FromSeconds(10));
@@ -48,6 +49,7 @@ builder.Services.AddRateLimiter(o => o.AddPolicy("api", context => RateLimitPart
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 var app = builder.Build();
+await PostgresWalletRepository.InitializeGroupExpenses(app.Services.GetRequiredService<NpgsqlDataSource>());
 if (app.Configuration.GetValue<bool>("Database:Initialize"))
     await PostgresWalletRepository.Initialize(app.Services.GetRequiredService<NpgsqlDataSource>(), app.Configuration["Database:ImportPath"], app.Services.GetRequiredService<IDataProtectionProvider>().CreateProtector("SensitiveFields.v1"));
 if (args.Contains("--initialize-only")) return;

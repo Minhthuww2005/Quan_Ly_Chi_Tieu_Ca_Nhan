@@ -27,3 +27,7 @@ Trong `wallet-web`, chạy `pnpm dev`. Giao diện: http://localhost:5174. API: 
 Bản cập nhật Google OAuth, VNPay sandbox và kiểm thử 137 ca HTTP được mô tả trong [WALLET_TEST_REPORT.md](WALLET_TEST_REPORT.md). Bảo hiểm demo hiện thu phí khi tạo và gia hạn. VNPay có checkout, Return URL và IPN xác minh chữ ký; cần URL backend công khai để nhận IPN thật. Chưa kiểm chứng đăng nhập Google bằng tài khoản thật hoặc giao dịch ngân hàng sandbox đầy đủ.
 
 
+
+## Bổ sung chi tiêu nhóm
+
+Client `/groups` và admin `/admin/groups` đã được nối vào menu HTD PAY. Backend tự bổ sung ba bảng nhóm trong schema htdpay khi khởi động; không cần nhập lại dữ liệu ví. Xem [phạm vi, phân quyền và kiểm thử nhóm](WALLET_GROUP_EXPENSES.md).
