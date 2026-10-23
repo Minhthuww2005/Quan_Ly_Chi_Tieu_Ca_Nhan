@@ -23,15 +23,21 @@ public static class FinancePolicy
     public const decimal SavingsMinAmount = 100_000m;
     public const int SavingsMaxTermMonths = 60;
 
+    public sealed record SavingsTier(int FromTerm, int ToTerm, decimal AnnualRate);
+
     // Annual savings rate by term in months; term 0 is the flexible (no-term) product.
-    public static decimal SavingsRate(int termMonths) => termMonths switch
-    {
-        0 => 4.2m,
-        < 3 => 5.5m,
-        < 6 => 6.0m,
-        < 12 => 6.5m,
-        _ => 7.0m,
-    };
+    // The client reads this table from GET /api/savings/products, so the UI shows the rate that is applied.
+    public static readonly IReadOnlyList<SavingsTier> SavingsTiers =
+    [
+        new(0, 0, 4.2m),
+        new(1, 2, 5.5m),
+        new(3, 5, 6.0m),
+        new(6, 11, 6.5m),
+        new(12, SavingsMaxTermMonths, 7.0m),
+    ];
+
+    public static decimal SavingsRate(int termMonths) =>
+        SavingsTiers.First(t => termMonths >= t.FromTerm && termMonths <= t.ToTerm).AnnualRate;
 
     public const string CryptoType = "Tiền điện tử";
 

@@ -12,6 +12,10 @@ import {
 } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import { loanProduct, useFinancePolicy } from '../services/financePolicy';
+
+const LOAN_TERMS = [12, 24, 36, 48, 60, 84, 120, 180, 240, 300];
+const DEFAULT_LOAN_TYPES = ['Vay tiêu dùng', 'Vay mua nhà', 'Vay mua xe', 'Vay kinh doanh'];
 
 interface Loan {
   id: string;
@@ -36,9 +40,11 @@ export default function LoanPage() {
   const [formData, setFormData] = useState({
     type: 'Vay tiêu dùng',
     amount: '',
-    interestRate: '18',
     term: '12'
   });
+  const { policy, error: policyError } = useFinancePolicy();
+  const product = loanProduct(policy, formData.type);
+  const termOptions = LOAN_TERMS.filter((t) => !product || t <= product.maxTermMonths);
 
   useEffect(() => {
     fetchLoans();
@@ -71,7 +77,6 @@ export default function LoanPage() {
           user_id: userInfo.user_id,
           type: formData.type,
           amount: parseFloat(formData.amount),
-          interestRate: parseFloat(formData.interestRate),
           term: parseInt(formData.term)
         })
       });
@@ -80,7 +85,7 @@ export default function LoanPage() {
       if (data.success) {
         setShowCreateModal(false);
         fetchLoans();
-        setFormData({ type: 'Vay tiêu dùng', amount: '', interestRate: '18', term: '12' });
+        setFormData({ type: 'Vay tiêu dùng', amount: '', term: '12' });
       } else {
         alert(data.message);
       }
@@ -338,13 +343,12 @@ export default function LoanPage() {
               <select
                 id="type"
                 value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, type: e.target.value, term: '12' })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
               >
-                <option value="Vay tiêu dùng">Vay tiêu dùng</option>
-                <option value="Vay mua nhà">Vay mua nhà</option>
-                <option value="Vay mua xe">Vay mua xe</option>
-                <option value="Vay kinh doanh">Vay kinh doanh</option>
+                {(policy?.loans.map((p) => p.type) ?? DEFAULT_LOAN_TYPES).map((type) => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
               </select>
             </div>
 
@@ -355,23 +359,15 @@ export default function LoanPage() {
                 type="number"
                 value={formData.amount}
                 onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                placeholder="Tối thiểu 10.000.000"
+                placeholder={product ? `Từ ${product.minAmount.toLocaleString('vi-VN')} đến ${product.maxAmount.toLocaleString('vi-VN')}` : 'Tối thiểu 10.000.000'}
               />
             </div>
 
             <div>
-              <Label htmlFor="rate">Lãi suất (%/năm)</Label>
-              <select
-                id="rate"
-                value={formData.interestRate}
-                onChange={(e) => setFormData({ ...formData, interestRate: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-              >
-                <option value="12">12% - Vay kinh doanh</option>
-                <option value="15">15% - Vay mua xe</option>
-                <option value="18">18% - Vay tiêu dùng</option>
-                <option value="9">9% - Vay mua nhà</option>
-              </select>
+              <Label>Lãi suất (%/năm)</Label>
+              <p className="px-3 py-2 border border-gray-200 bg-gray-50 rounded-lg text-gray-800">
+                {product ? `${product.annualRate}%/năm theo sản phẩm ${product.type}` : policyError || 'Đang tải biểu lãi suất...'}
+              </p>
             </div>
 
             <div>
@@ -382,11 +378,9 @@ export default function LoanPage() {
                 onChange={(e) => setFormData({ ...formData, term: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
               >
-                <option value="12">12 tháng</option>
-                <option value="24">24 tháng</option>
-                <option value="36">36 tháng</option>
-                <option value="60">60 tháng</option>
-                <option value="120">120 tháng</option>
+                {termOptions.map((t) => (
+                  <option key={t} value={t}>{t} tháng</option>
+                ))}
               </select>
             </div>
           </div>

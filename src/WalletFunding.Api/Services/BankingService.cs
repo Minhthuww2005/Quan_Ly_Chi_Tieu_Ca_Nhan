@@ -4,6 +4,8 @@ namespace WalletFunding.Api;
 
 public sealed class BankingService(IWalletRepository repository, IConfiguration configuration, IDataProtectionProvider protection, IHttpClientFactory http, IHostEnvironment environment) : WalletServiceBase(repository, configuration, protection, http, environment)
 {
+    protected override bool VerifiesPin => true;
+
     public override async Task<ServiceResponse> ExecuteAsync(WalletRequest context)
     {
         return await ExecuteWithReceipt(context, Banking);

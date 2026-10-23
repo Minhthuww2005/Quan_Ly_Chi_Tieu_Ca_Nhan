@@ -121,6 +121,16 @@ public sealed class PostgresWalletRepository(NpgsqlDataSource source) : IWalletR
         return cache[table] = result;
     }
 
+    public async Task<JsonObject?> Peek(string table, string field, string value)
+    {
+        if (!Tables.Contains(table) || !System.Text.RegularExpressions.Regex.IsMatch(field, "^[a-z_]{1,40}$")) throw new InvalidOperationException("Unknown table or field");
+        // Separate pooled connection: runs before Begin, never joins the request transaction or the advisory lock.
+        await using var peekConnection = await source.OpenConnectionAsync();
+        await using var cmd = new NpgsqlCommand($"SELECT data::text FROM htdpay.{table} WHERE data->>'{field}' = @value LIMIT 1", peekConnection);
+        cmd.Parameters.AddWithValue("value", value);
+        return await cmd.ExecuteScalarAsync() is string json ? JsonNode.Parse(json)!.AsObject() : null;
+    }
+
     public async Task<List<JsonObject>> Where(string table, string field, string value)
     {
         if (!Tables.Contains(table) || !System.Text.RegularExpressions.Regex.IsMatch(field, "^[a-z_]{1,40}$")) throw new InvalidOperationException("Unknown table or field");

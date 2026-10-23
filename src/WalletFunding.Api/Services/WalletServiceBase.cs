@@ -19,7 +19,24 @@ public abstract class WalletServiceBase(IWalletRepository repository, IConfigura
     protected readonly IHttpClientFactory http = httpFactory;
     protected readonly IHostEnvironment environment = hostEnvironment;
     public abstract Task<ServiceResponse> ExecuteAsync(WalletRequest context);
-    public virtual Task PrefetchAsync(WalletRequest context) => Task.CompletedTask;
+    // Services whose money operations are protected by a PIN verify it in PrefetchAsync.
+    protected virtual bool VerifiesPin => false;
+    private (int UserId, string Hash, string Pin)? verifiedPin;
+
+    // Runs before the controller opens the write transaction. BCrypt (~190 ms) is checked here so it no longer
+    // runs while every other write waits on the global advisory lock. Pin() re-checks inside the transaction
+    // that the stored hash is unchanged, so a PIN changed in between still has to verify again.
+    public virtual async Task PrefetchAsync(WalletRequest context)
+    {
+        if (!VerifiesPin || context.Method == "GET" || context.Principal.Identity?.IsAuthenticated != true) return;
+        var data = context.Body;
+        var pin = J.Str(data, "pin", J.Str(data, "pinCode", J.Str(data, "pin_code")));
+        if (pin.Length == 0 || !int.TryParse(context.Principal.FindFirstValue(ClaimTypes.NameIdentifier), out var principalId)) return;
+        var id = J.Int(data, "user_id", J.Int(data, "userId", J.Int(data, "senderId", J.Int(data, "from_user_id", principalId))));
+        var user = await store.Peek("users", "user_id", id.ToString());
+        var hash = user == null ? "" : J.Str(user, "pinHash");
+        if (hash.Length > 0 && Verify(pin, hash)) verifiedPin = (id, hash, pin);
+    }
     protected WalletRequest request = null!;
     protected int StatusCode = 200;
     protected JsonObject body = [];
@@ -111,7 +128,9 @@ public abstract class WalletServiceBase(IWalletRepository repository, IConfigura
     {
         Require(!Blocked(user), "Tài khoản đã bị khóa", 403);
         Require(!string.IsNullOrEmpty(J.Str(user, "pinHash")), "Bạn chưa thiết lập mã PIN");
-        Require(Verify(pin, J.Str(user, "pinHash")), "Mã PIN không đúng", 401, "INVALID_PIN");
+        var hash = J.Str(user, "pinHash");
+        var preVerified = verifiedPin is { } v && v.UserId == J.Int(user, "user_id") && v.Hash == hash && v.Pin == pin;
+        Require(preVerified || Verify(pin, hash), "Mã PIN không đúng", 401, "INVALID_PIN");
         await Task.CompletedTask;
     }
     protected async Task<ServiceResponse> ExecuteWithReceipt(WalletRequest context, Func<Task<JsonObject>> operation)

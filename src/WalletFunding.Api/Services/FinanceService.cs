@@ -20,6 +20,7 @@ public sealed class FinanceService(IWalletRepository repository, IConfiguration 
         var needsPrice = context.Principal.Identity?.IsAuthenticated == true && context.Method is "POST" or "PUT"
             && segments.Length >= 3 && segments[1].Equals("investments", StringComparison.OrdinalIgnoreCase)
             && (segments[2] is "sync-price" or "sell" or "update" || segments[2] == "create" && J.Str(context.Body, "type") == FinancePolicy.CryptoType);
+        await base.PrefetchAsync(context);
         if (!needsPrice) return;
         try
         {
@@ -38,6 +39,13 @@ public sealed class FinanceService(IWalletRepository repository, IConfiguration 
     private async Task<JsonObject> Finance()
     {
         var table = Area switch { "savings" => "savingsaccounts", "loans" => "loanaccounts", "insurance" => "insurances", _ => "investments" };
+        if (Method == "GET" && Action == "products" && Area is "loans" or "savings")
+        {
+            // Server-owned product rules for the forms: the UI shows exactly what create will apply.
+            if (Area == "loans")
+                return J.Obj(new { success = true, products = FinancePolicy.Loans.Select(x => new { type = x.Key, annualRate = x.Value.AnnualRate, minAmount = FinancePolicy.LoanMinAmount, maxAmount = x.Value.MaxAmount, maxTermMonths = x.Value.MaxTermMonths }).ToArray(), maxActiveLoans = FinancePolicy.MaxActiveLoans, outstandingCeiling = FinancePolicy.LoanCeiling(J.Str(current!, "kycTier", "TIER_1")) });
+            return J.Obj(new { success = true, tiers = FinancePolicy.SavingsTiers.Select(t => new { fromTerm = t.FromTerm, toTerm = t.ToTerm, annualRate = t.AnnualRate }).ToArray(), minAmount = FinancePolicy.SavingsMinAmount, maxTermMonths = FinancePolicy.SavingsMaxTermMonths });
+        }
         if (Method == "GET")
         {
             Require(int.TryParse(Action, out var id), "Mã người dùng không hợp lệ"); Own(id);
@@ -136,7 +144,9 @@ public sealed class FinanceService(IWalletRepository repository, IConfiguration 
         {
             Require(DateTime.TryParse(J.Str(item, "startDate"), out var start), "Ngày mở sổ không hợp lệ");
             var months = Math.Max(0, (int)Math.Floor((DateTime.UtcNow - start).TotalDays / 30)); var term = J.Int(item, "term"); var early = months < term;
-            var principal = J.Money(item, "balance"); var interest = Math.Round(principal * J.Money(item, "interestRate") * (early ? 0.5m : 1m) * Math.Min(months, term) / 1200);
+            // Flexible savings (term 0) earn interest for every full month held; a term deposit earns up to its term.
+            var paidMonths = term == 0 ? months : Math.Min(months, term);
+            var principal = J.Money(item, "balance"); var interest = Math.Round(principal * J.Money(item, "interestRate") * (early ? 0.5m : 1m) * paidMonths / 1200);
             item["status"] = "closed"; Credit(wallet, principal + interest); await Record(wallet, principal + interest, "savings", "Đóng sổ tiết kiệm", J.Str(item, "name"));
             return J.Obj(new { success = true, message = "Đóng sổ thành công", principal, interest, total = principal + interest, penalty = early ? "Rút trước hạn, lãi suất giảm 50%" : null });
         }

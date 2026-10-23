@@ -9,6 +9,7 @@ import { Card, CardContent,} from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Slider } from '../components/ui/slider';
 import { formatCurrency } from '../data/bankingData';
+import { loanProduct, savingsRate, useFinancePolicy } from '../services/financePolicy';
 
 interface ServiceModalProps {
   isOpen: boolean;
@@ -23,18 +24,24 @@ export default function ServiceModal({ isOpen, onClose, type }: ServiceModalProp
   const [loanAmount, setLoanAmount] = useState([50000000]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const { policy } = useFinancePolicy();
 
   const savingsProducts = [
-    { id: '1', name: 'Tiết kiệm có kỳ hạn', rate: 6.5, minAmount: 1000000, terms: [6, 12, 18, 24, 36] },
-    { id: '2', name: 'Tiết kiệm linh hoạt', rate: 4.2, minAmount: 500000, terms: [0] },
-    { id: '3', name: 'Tiết kiệm tích lũy', rate: 5.8, minAmount: 100000, terms: [12, 24, 36] }
+    { id: '1', name: 'Tiết kiệm có kỳ hạn', minAmount: 1000000, terms: [6, 12, 18, 24, 36] },
+    { id: '2', name: 'Tiết kiệm linh hoạt', minAmount: 500000, terms: [0] },
+    { id: '3', name: 'Tiết kiệm tích lũy', minAmount: 100000, terms: [12, 24, 36] }
   ];
 
   const loanProducts = [
-    { id: '1', name: 'Vay tiêu dùng', rate: 12.5, maxAmount: 500000000, terms: [12, 24, 36, 48, 60] },
-    { id: '2', name: 'Vay mua nhà', rate: 8.5, maxAmount: 2000000000, terms: [120, 180, 240, 300] },
-    { id: '3', name: 'Vay mua xe', rate: 10.2, maxAmount: 1000000000, terms: [24, 36, 48, 60, 84] }
-  ];
+    { id: '1', name: 'Vay tiêu dùng', terms: [12, 24, 36, 48, 60] },
+    { id: '2', name: 'Vay mua nhà', terms: [120, 180, 240, 300] },
+    { id: '3', name: 'Vay mua xe', terms: [24, 36, 48, 60, 84] }
+  ].map((p) => {
+    // Rate, amount limit and maximum term come from the server so the estimate matches what is applied.
+    const server = loanProduct(policy, p.name);
+    return { ...p, rate: server?.annualRate ?? null, maxAmount: server?.maxAmount ?? 500000000, terms: p.terms.filter((t) => !server || t <= server.maxTermMonths) };
+  });
+  const savingsRateFor = (t: number) => savingsRate(policy, t);
 
   const insuranceProducts = [
     { id: '1', name: 'Bảo hiểm nhân thọ', premium: 2400000, coverage: 500000000, term: 10 },
@@ -51,17 +58,18 @@ export default function ServiceModal({ isOpen, onClose, type }: ServiceModalProp
   const calculateSavingsInterest = () => {
     const principal = parseInt(amount) || 0;
     const product = savingsProducts.find(p => p.id === selectedProduct);
-    if (!product) return 0;
-    
-    const monthlyRate = product.rate / 100 / 12;
+    const rate = savingsRateFor(term);
+    if (!product || rate === null) return 0;
+
+    const monthlyRate = rate / 100 / 12;
     return principal * monthlyRate * term;
   };
 
   const calculateLoanPayment = () => {
     const principal = loanAmount[0];
     const product = loanProducts.find(p => p.id === selectedProduct);
-    if (!product) return 0;
-    
+    if (!product || product.rate === null) return 0;
+
     const monthlyRate = product.rate / 100 / 12;
     const payment = (principal * monthlyRate * Math.pow(1 + monthlyRate, term)) / 
                    (Math.pow(1 + monthlyRate, term) - 1);
@@ -79,9 +87,9 @@ export default function ServiceModal({ isOpen, onClose, type }: ServiceModalProp
       const insurance = insuranceProducts.find(p => p.id === selectedProduct);
       const investment = investmentProducts.find(p => p.id === selectedProduct);
       const details = type === 'savings'
-        ? { name: savings!.name, amount: Number(amount), interestRate: savings!.rate, term }
+        ? { name: savings!.name, amount: Number(amount), term }
         : type === 'loan'
-        ? { type: loan!.name, amount: loanAmount[0], interestRate: loan!.rate, term }
+        ? { type: loan!.name, amount: loanAmount[0], term }
         : type === 'insurance'
         ? { name: insurance!.name, type: insurance!.name, premium: insurance!.premium, coverage: insurance!.coverage, term: insurance!.term }
         : { name: investment!.name, type: 'Quỹ đầu tư', amount: Number(amount) };
@@ -131,7 +139,7 @@ export default function ServiceModal({ isOpen, onClose, type }: ServiceModalProp
           <SelectContent>
             {savingsProducts.map(product => (
               <SelectItem key={product.id} value={product.id}>
-                {product.name} - {product.rate}%/năm
+                {product.name} - {product.terms[0] === 0 ? `${savingsRateFor(0) ?? '...'}%/năm` : 'lãi suất theo kỳ hạn'}
               </SelectItem>
             ))}
           </SelectContent>
@@ -164,6 +172,7 @@ export default function ServiceModal({ isOpen, onClose, type }: ServiceModalProp
                 ))}
               </SelectContent>
             </Select>
+            <p className="text-sm text-gray-600 mt-1">Lãi suất áp dụng: {savingsRateFor(term) ?? '...'}%/năm</p>
           </div>
 
           {amount && (
@@ -198,7 +207,7 @@ export default function ServiceModal({ isOpen, onClose, type }: ServiceModalProp
           <SelectContent>
             {loanProducts.map(product => (
               <SelectItem key={product.id} value={product.id}>
-                {product.name} - {product.rate}%/năm
+                {product.name} - {product.rate ?? '...'}%/năm
               </SelectItem>
             ))}
           </SelectContent>

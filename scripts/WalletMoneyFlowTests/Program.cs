@@ -243,6 +243,48 @@ controller.ControllerContext = new ControllerContext { HttpContext = context };
 var result = await controller.Execute();
 Check(result is JsonResult { StatusCode: 201 } && recording.PriceCallsAtBegin == 1 && recording.PriceCallsDuringTransaction == 0, "Binance price is fetched before Begin(write): no external call while holding the advisory lock");
 
+// ---------- 9. Product rules served to the UI match what create applies ----------
+Seed();
+var loanProducts = await Call(Finance(), "GET", "/api/loans/products", null, 1, key: null);
+var consumer = loanProducts.Body["products"]!.AsArray().OfType<JsonObject>().Single(x => J.Str(x, "type") == "Vay tiêu dùng");
+var appliedLoan = await Call(Finance(), "POST", "/api/loans/create", new { user_id = 1, type = "Vay tiêu dùng", amount = 10_000_000, term = 12 }, 1);
+Check(loanProducts.Status == 200 && J.Money(consumer, "annualRate") == J.Money(appliedLoan.Body["loan"]!.AsObject(), "interestRate") && J.Int(consumer, "maxTermMonths") == 60, "GET /loans/products shows the same rate that loans/create applies");
+var savingsProducts = await Call(Finance(), "GET", "/api/savings/products", null, 1, key: null);
+var tiers = savingsProducts.Body["tiers"]!.AsArray().OfType<JsonObject>().ToArray();
+Check(savingsProducts.Status == 200 && Enumerable.Range(0, 61).All(term => J.Money(tiers.Single(t => term >= J.Int(t, "fromTerm") && term <= J.Int(t, "toTerm")), "annualRate") == FinancePolicy.SavingsRate(term)), "GET /savings/products covers every term 0-60 with the rate create applies");
+
+// ---------- 10. Flexible savings (term 0) earn interest for the months held ----------
+Seed();
+var flexible = await Call(Finance(), "POST", "/api/savings/create", new { user_id = 1, name = "QA linh hoạt", amount = 12_000_000, term = 0 }, 1);
+var flexibleId = J.Str(flexible.Body["account"]!.AsObject(), "id");
+store.Tables["savingsaccounts"].Single(x => J.Str(x, "id") == flexibleId)["startDate"] = DateTime.UtcNow.AddDays(-95).ToString("yyyy-MM-dd");
+before = Balance(1);
+var closed = await Call(Finance(), "POST", "/api/savings/close", new { user_id = 1, id = flexibleId }, 1);
+Check(closed.Status == 200 && J.Money(closed.Body, "interest") == 126_000 && Balance(1) - before == 12_126_000, "Flexible savings held 3 months pays 12M x 4.2% x 3/12 = 126.000 (was always 0)");
+
+// ---------- 11. PIN is verified before the write lock, and re-checked inside it ----------
+Seed();
+var callOrder = new List<string>();
+var pinRepo = new OrderRepository(store, callOrder);
+var txController = new TransactionsController(new TransactionService(pinRepo, config, protection, http, environment), pinRepo);
+JsonResult? Run(TransactionsController c, object body, string key)
+{
+    var ctx = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "1")], "Test")) };
+    ctx.Request.Method = "POST"; ctx.Request.Path = "/api/transactions/transfer"; ctx.Request.Headers["Idempotency-Key"] = key;
+    ctx.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(body)));
+    ctx.Features.Set<Microsoft.AspNetCore.Http.Features.IHttpRequestBodyDetectionFeature>(new BodyDetection());
+    c.ControllerContext = new ControllerContext { HttpContext = ctx };
+    return c.Execute().GetAwaiter().GetResult() as JsonResult;
+}
+var pinOk = Run(txController, new { to_phone = "0900000002", amount = 10_000, pin = Pin }, "qa-pin-callOrder-1");
+Check(pinOk?.StatusCode == 200 && callOrder.IndexOf("peek:users") >= 0 && callOrder.IndexOf("peek:users") < callOrder.IndexOf("begin:write"), "PIN hash is read and verified before Begin(write) takes the advisory lock");
+callOrder.Clear();
+pinRepo.OnBegin = () => store.Tables["users"].Single(x => J.Int(x, "user_id") == 1)["pinHash"] = BCrypt.Net.BCrypt.HashPassword("654321", 4);
+before = Balance(1);
+try { Run(new TransactionsController(new TransactionService(pinRepo, config, protection, http, environment), pinRepo), new { to_phone = "0900000002", amount = 10_000, pin = Pin }, "qa-pin-callOrder-2"); Check(false, "PIN changed after pre-check must be rejected"); }
+catch (ApiError e) { Check(e.Status == 401 && e.Code == "INVALID_PIN" && Balance(1) == before, "PIN changed between pre-check and lock is verified again and rejected; balance unchanged"); }
+pinRepo.OnBegin = null;
+
 var output = Path.GetFullPath(args.FirstOrDefault() ?? "docs/wallet-test-results/money-flow-results.json");
 Directory.CreateDirectory(Path.GetDirectoryName(output)!);
 await File.WriteAllTextAsync(output, JsonSerializer.Serialize(new { generatedAt = DateTimeOffset.UtcNow, passed = results.Count, scope = "production services/controller with in-memory repository; no PostgreSQL, network or real provider", results }, new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }));
@@ -256,6 +298,19 @@ sealed class MemoryRepository : IWalletRepository
     public async Task Add(string table, JsonObject data) => (await All(table)).Add(data);
     public async Task<int> Next(string table, string field) => (await All(table)).Select(x => J.Int(x, field)).DefaultIfEmpty().Max() + 1;
     public async Task<string> NextCode(string table, string prefix) => prefix + ((await All(table)).Count + 1).ToString("D4");
+    public Task Commit() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+}
+
+sealed class OrderRepository(MemoryRepository inner, List<string> order) : IWalletRepository
+{
+    public Action? OnBegin { get; set; }
+    public Task Begin(bool write) { order.Add(write ? "begin:write" : "begin:read"); OnBegin?.Invoke(); return Task.CompletedTask; }
+    public Task<JsonObject?> Peek(string table, string field, string value) { order.Add("peek:" + table); return ((IWalletRepository)inner).Peek(table, field, value); }
+    public Task<List<JsonObject>> All(string table) => inner.All(table);
+    public Task Add(string table, JsonObject data) => inner.Add(table, data);
+    public Task<int> Next(string table, string field) => inner.Next(table, field);
+    public Task<string> NextCode(string table, string prefix) => inner.NextCode(table, prefix);
     public Task Commit() => Task.CompletedTask;
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }

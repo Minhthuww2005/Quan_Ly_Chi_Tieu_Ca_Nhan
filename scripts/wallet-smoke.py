@@ -61,8 +61,11 @@ call('POST', '/auth/set-pin', {'userId': first, 'pinCode': pin}, token)
 call('POST', '/auth/set-pin', {'userId': second, 'pinCode': pin}, other_token)
 call('POST', '/loans/create', {'user_id': first, 'type': 'Vay mô phỏng', 'amount': 20000000, 'term': 12}, token, status=400)
 call('POST', '/loans/create', {'user_id': first, 'type': 'Vay tiêu dùng', 'amount': 600000000, 'term': 12}, token, status=400)
+products = call('GET', '/loans/products', token=token)['products']
+consumer = next(p for p in products if p['type'] == 'Vay tiêu dùng')
+assert call('GET', '/savings/products', token=token)['tiers'][0] == {'fromTerm': 0, 'toTerm': 0, 'annualRate': 4.2}
 created_loan = call('POST', '/loans/create', {'user_id': first, 'type': 'Vay tiêu dùng', 'amount': 20000000, 'interestRate': 0, 'term': 12}, token, status=201)['loan']
-assert created_loan['interestRate'] == 18, 'Loan rate must come from the server product table, not the client'
+assert created_loan['interestRate'] == consumer['annualRate'] == 18, 'Loan rate must come from the server product table, not the client'
 loan = created_loan['id']
 call('POST', '/loans/create', {'user_id': first, 'type': 'Vay mua xe', 'amount': 90000000, 'term': 24}, token, status=403)
 before = call('GET', f'/wallet/{first}', token=token)['wallet']['balance']

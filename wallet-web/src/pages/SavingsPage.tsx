@@ -12,6 +12,9 @@ import {
 } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import { savingsRate, useFinancePolicy } from '../services/financePolicy';
+
+const SAVINGS_TERMS = [0, 1, 3, 6, 12, 24, 36];
 
 interface SavingsAccount {
   id: string;
@@ -34,9 +37,10 @@ export default function SavingsPage() {
   const [formData, setFormData] = useState({
     name: '',
     amount: '',
-    interestRate: '6.5',
     term: '12'
   });
+  const { policy, error: policyError } = useFinancePolicy();
+  const rate = savingsRate(policy, parseInt(formData.term));
 
   useEffect(() => {
     fetchSavings();
@@ -69,7 +73,6 @@ export default function SavingsPage() {
           user_id: userInfo.user_id,
           name: formData.name,
           amount: parseFloat(formData.amount),
-          interestRate: parseFloat(formData.interestRate),
           term: parseInt(formData.term)
         })
       });
@@ -78,7 +81,7 @@ export default function SavingsPage() {
       if (data.success) {
         setShowCreateModal(false);
         fetchSavings();
-        setFormData({ name: '', amount: '', interestRate: '6.5', term: '12' });
+        setFormData({ name: '', amount: '', term: '12' });
       } else {
         alert(data.message);
       }
@@ -355,23 +358,15 @@ export default function SavingsPage() {
                 type="number"
                 value={formData.amount}
                 onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                placeholder="Tối thiểu 1.000.000"
+                placeholder={`Tối thiểu ${(policy?.savingsMinAmount ?? 100000).toLocaleString('vi-VN')}`}
               />
             </div>
 
             <div>
-              <Label htmlFor="rate">Lãi suất (%/năm)</Label>
-              <select
-                id="rate"
-                value={formData.interestRate}
-                onChange={(e) => setFormData({ ...formData, interestRate: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="5.5">5.5% - 1-3 tháng</option>
-                <option value="6.0">6.0% - 3-6 tháng</option>
-                <option value="6.5">6.5% - 6-12 tháng</option>
-                <option value="7.0">7.0% - 12-24 tháng</option>
-              </select>
+              <Label>Lãi suất (%/năm)</Label>
+              <p className="px-3 py-2 border border-gray-200 bg-gray-50 rounded-lg text-gray-800">
+                {rate !== null ? `${rate}%/năm theo kỳ hạn đã chọn` : policyError || 'Đang tải biểu lãi suất...'}
+              </p>
             </div>
 
             <div>
@@ -382,11 +377,9 @@ export default function SavingsPage() {
                 onChange={(e) => setFormData({ ...formData, term: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               >
-                <option value="1">1 tháng</option>
-                <option value="3">3 tháng</option>
-                <option value="6">6 tháng</option>
-                <option value="12">12 tháng</option>
-                <option value="24">24 tháng</option>
+                {SAVINGS_TERMS.map((t) => (
+                  <option key={t} value={t}>{t === 0 ? 'Không kỳ hạn (linh hoạt)' : `${t} tháng`}</option>
+                ))}
               </select>
             </div>
           </div>
