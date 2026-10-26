@@ -1,0 +1,37 @@
+{
+  "label": "bf21d48",
+  "api": "http://localhost:5084/api",
+  "generatedAt": "2026-10-26T09:09:29Z",
+  "scenario": "buy investment 5000000, sell with client sellPrice 50000000",
+  "buyStatus": 201,
+  "sellStatus": 200,
+  "sellResponse": {
+    "success": true,
+    "message": "Cập nhật đầu tư thành công",
+    "investment": {
+      "id": "INV000003",
+      "_id": "2e1b772edbe54c7b8904f718726a448c",
+      "name": "QA Stock",
+      "type": "Cổ phiếu mô phỏng",
+      "amount": 5000000,
+      "profit": 45000000,
+      "status": "sold",
+      "user_id": 18,
+      "startDate": "2026-10-26",
+      "created_at": "2026-10-26T09:09:29.1922466+00:00",
+      "currentValue": 50000000,
+      "purchaseDate": "2026-10-26",
+      "profitPercent": 900
+    },
+    "sellPrice": 50000000,
+    "profit": 45000000,
+    "profitPercent": 900
+  },
+  "userBalanceBefore": 20000000.0,
+  "userBalanceAfter": 65000000.0,
+  "userBalanceChange": 45000000.0,
+  "totalWalletBalanceBefore": 75620000.0,
+  "totalWalletBalanceAfter": 120620000.0,
+  "totalChange": 45000000.0,
+  "invariantHolds": false
+}
