@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../components/ui/select';
+import { useTransactionFlow } from '../components/TransactionFlow';
 
 interface Investment {
   id: string;
@@ -36,6 +37,7 @@ interface Investment {
 
 export default function InvestmentPage() {
   const navigate = useNavigate();
+  const flow = useTransactionFlow();
   const [investments, setInvestments] = useState<Investment[]>([]);
   const [summary, setSummary] = useState({ totalInvested: 0, totalValue: 0, totalProfit: 0, overallReturn: 0 });
   const [loading, setLoading] = useState(true);
@@ -104,31 +106,37 @@ export default function InvestmentPage() {
     }
   };
 
-  const handleCreate = async () => {
-    try {
-      const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
-      const response = await fetch('/api/investments/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: userInfo.user_id,
-          type: formData.type,
-          name: formData.name,
-          amount: parseFloat(formData.amount)
-        })
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        setShowCreateModal(false);
-        fetchInvestments();
-        setFormData({ type: 'Chứng khoán', name: '', amount: '' });
-      } else {
-        alert(data.message);
-      }
-    } catch (error) {
-      console.error('Error creating investment:', error);
+  // Review -> PIN -> result, the same steps as phone top-up; the list refreshes without reloading the page.
+  const handleCreate = () => {
+    const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+    const amount = parseFloat(formData.amount);
+    if (!formData.name.trim() || !(amount > 0)) {
+      alert('Vui lòng nhập tên khoản đầu tư và số tiền');
+      return;
     }
+    setShowCreateModal(false);
+    flow.start({
+      title: 'Tạo khoản đầu tư',
+      rows: [
+        { label: 'Loại đầu tư', value: formData.type },
+        { label: 'Tên', value: formData.name },
+        { label: 'Số tiền trừ ví', value: new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount), highlight: true },
+      ],
+      actionLabel: 'Đầu tư',
+      processingText: 'Đang xử lý...',
+      successText: 'Tạo khoản đầu tư thành công!',
+      run: async (pin) => {
+        const response = await fetch('/api/investments/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: userInfo.user_id, pin, type: formData.type, name: formData.name, amount })
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.message || 'Không thể tạo khoản đầu tư');
+        setFormData({ type: 'Chứng khoán', name: '', amount: '' });
+        fetchInvestments();
+      },
+    });
   };
 
   const formatMoney = (amount: number) => {
@@ -457,6 +465,7 @@ export default function InvestmentPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {flow.dialog}
     </div>
   );
 }

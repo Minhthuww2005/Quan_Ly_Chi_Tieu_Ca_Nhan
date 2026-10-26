@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { ChevronRight, ArrowDownLeft, ArrowUpRight, CreditCard, Smartphone } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { transactionAPI } from '../services/api';
+import { WALLET_CHANGED } from '../services/walletEvents';
 
 interface Transaction {
   trans_id: number;
@@ -15,6 +16,7 @@ interface Transaction {
   created_at: string;
   sender_id?: number;
   recipient_id?: number;
+  failure_reason?: string;
 }
 
 export default function TransactionList() {
@@ -53,9 +55,13 @@ export default function TransactionList() {
 
     fetchTransactions();
     
-    // Reload transactions sau mỗi 30s
+    // Reload transactions sau mỗi 30s, và ngay sau mỗi giao dịch
     const interval = setInterval(fetchTransactions, 30000);
-    return () => clearInterval(interval);
+    window.addEventListener(WALLET_CHANGED, fetchTransactions);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener(WALLET_CHANGED, fetchTransactions);
+    };
   }, []);
 
   const formatCurrency = (amount: number) => {
@@ -160,13 +166,17 @@ export default function TransactionList() {
                 <div className="text-xs text-gray-500 leading-relaxed">
                   {transaction.description || formatDate(transaction.timestamp || transaction.created_at)}
                 </div>
+                {transaction.status === 'failed' && transaction.failure_reason && (
+                  <div className="text-xs text-red-600">Lý do: {transaction.failure_reason}</div>
+                )}
               </div>
               
               <div className="text-right flex-shrink-0">
-                <div className={`font-semibold text-sm ${getAmountColor(transaction.amount)}`}>
+                {/* A failed operation moved no money: the amount is shown struck through. */}
+                <div className={`font-semibold text-sm ${transaction.status === 'failed' ? 'text-gray-400 line-through' : getAmountColor(transaction.amount)}`}>
                   {formatTransactionAmount(transaction.amount, transaction.type)}
                 </div>
-                <div className="text-xs text-gray-400 mt-1">
+                <div className={`text-xs mt-1 ${transaction.status === 'failed' ? 'text-red-600' : 'text-gray-400'}`}>
                   {transaction.status === 'completed' || transaction.status === 'success' ? 'Thành công' :
                    transaction.status === 'pending' ? 'Đang xử lý' :
                    transaction.status === 'failed' ? 'Thất bại' : 'Chưa xác định'}

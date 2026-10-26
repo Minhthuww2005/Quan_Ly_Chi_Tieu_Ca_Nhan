@@ -1,0 +1,126 @@
+{
+  "generatedAt": "2026-10-24T06:46:19.434331+00:00",
+  "transactionsRows": 300556,
+  "syntheticUsers": 30000,
+  "repeat": 5,
+  "host": {
+    "os": "Linux-6.18.44-fc-v153-x86_64-with-glibc2.39",
+    "cpus": 2
+  },
+  "postgres": "16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)",
+  "queries": [
+    {
+      "query": "history-by-wallet",
+      "label": "Lịch sử / hạn mức ngày: Where(transactions, wallet_id)",
+      "executionMs": 0.558,
+      "runsMs": [
+        0.63,
+        0.558,
+        0.471,
+        0.558,
+        0.798
+      ],
+      "scans": [
+        "Bitmap Heap Scan on transactions"
+      ],
+      "indexes": [
+        "ix_htd_transaction_wallet"
+      ]
+    },
+    {
+      "query": "user-by-email",
+      "label": "Đăng nhập: FindOne(users, email, ignoreCase)",
+      "executionMs": 0.068,
+      "runsMs": [
+        0.098,
+        0.08,
+        0.068,
+        0.067,
+        0.067
+      ],
+      "scans": [
+        "Index Scan on users"
+      ],
+      "indexes": [
+        "ux_htd_email"
+      ]
+    },
+    {
+      "query": "next-trans-id",
+      "label": "Next(transactions, trans_id): MAX + 1",
+      "executionMs": 0.123,
+      "runsMs": [
+        0.141,
+        0.113,
+        0.167,
+        0.114,
+        0.123
+      ],
+      "scans": [
+        "Index Scan on transactions"
+      ],
+      "indexes": [
+        "ix_htd_transaction_number"
+      ]
+    },
+    {
+      "query": "admin-transactions-page",
+      "label": "Admin giao dịch: một trang 20 dòng",
+      "executionMs": 0.287,
+      "runsMs": [
+        0.31,
+        0.265,
+        0.286,
+        0.287,
+        0.312
+      ],
+      "scans": [
+        "Index Scan on transactions",
+        "Index Scan on users",
+        "Seq Scan on wallets"
+      ],
+      "indexes": [
+        "ix_htd_transaction_time",
+        "ux_htd_user_id"
+      ]
+    },
+    {
+      "query": "admin-transactions-stats",
+      "label": "Admin giao dịch: thống kê trạng thái và khối lượng",
+      "executionMs": 288.273,
+      "runsMs": [
+        324.139,
+        288.273,
+        281.034,
+        280.679,
+        329.618
+      ],
+      "scans": [
+        "Seq Scan on transactions"
+      ],
+      "indexes": []
+    },
+    {
+      "query": "admin-users-page",
+      "label": "Admin người dùng: một trang 20 dòng",
+      "executionMs": 48.524,
+      "runsMs": [
+        47.581,
+        48.524,
+        49.161,
+        50.737,
+        47.606
+      ],
+      "scans": [
+        "Bitmap Heap Scan on kycprofiles",
+        "Bitmap Heap Scan on transactions",
+        "Seq Scan on users",
+        "Seq Scan on wallets"
+      ],
+      "indexes": [
+        "ix_htd_transaction_wallet",
+        "ix_kycprofiles_owner"
+      ]
+    }
+  ]
+}

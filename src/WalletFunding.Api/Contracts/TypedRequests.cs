@@ -32,7 +32,7 @@ public sealed class TransferRequest : IValidatableObject
 
     [JsonPropertyName("amount")]
     [Required(ErrorMessage = "Vui lòng nhập số tiền")]
-    [Range(typeof(decimal), "10000", MoneyRules.Max, ErrorMessage = "Số tiền chuyển từ 10.000 VND")]
+    [Range(typeof(decimal), "10000", MoneyRules.Max, ErrorMessage = "Số tiền chuyển phải từ 10.000 VND đến 1.000 tỷ VND")]
     public decimal? Amount { get; init; }
 
     [JsonPropertyName("pin")] public string? Pin { get; init; }
@@ -86,7 +86,7 @@ public sealed class SavingsCreateRequest : IValidatableObject
 
     [JsonPropertyName("amount")]
     [Required(ErrorMessage = "Vui lòng nhập số tiền")]
-    [Range(typeof(decimal), "100000", MoneyRules.Max, ErrorMessage = "Số tiền gửi tối thiểu 100.000 VND")]
+    [Range(typeof(decimal), "100000", MoneyRules.Max, ErrorMessage = "Số tiền gửi phải từ 100.000 VND đến 1.000 tỷ VND")]
     public decimal? Amount { get; init; }
 
     [JsonPropertyName("term")]
@@ -106,7 +106,7 @@ public sealed class LoanCreateRequest : IValidatableObject
 
     [JsonPropertyName("amount")]
     [Required(ErrorMessage = "Vui lòng nhập số tiền vay")]
-    [Range(typeof(decimal), "10000000", MoneyRules.Max, ErrorMessage = "Số tiền vay tối thiểu 10.000.000 VND")]
+    [Range(typeof(decimal), "10000000", MoneyRules.Max, ErrorMessage = "Số tiền vay phải từ 10.000.000 VND và không vượt hạn mức sản phẩm")]
     public decimal? Amount { get; init; }
 
     [JsonPropertyName("term")][Required(ErrorMessage = "Vui lòng chọn kỳ hạn")][Range(1, 360, ErrorMessage = "Kỳ hạn không hợp lệ")] public int? Term { get; init; }

@@ -396,6 +396,29 @@ public sealed class PostgresWalletRepository(NpgsqlDataSource source) : IWalletR
         await transaction.CommitAsync();
     }
 
+    public async Task Rollback()
+    {
+        if (transaction != null) { await transaction.RollbackAsync(); await transaction.DisposeAsync(); transaction = null; }
+        cache.Clear(); originals.Clear(); pending.Clear(); partial.Clear(); allocated.Clear();
+    }
+
+    public async Task RecordFailedTransaction(JsonObject row)
+    {
+        await using var c = await source.OpenConnectionAsync();
+        await using var tx = await c.BeginTransactionAsync();
+        // Same lock as every write, so the trans_id below cannot collide with a concurrent transfer.
+        await using (var lockCmd = new NpgsqlCommand("SELECT pg_advisory_xact_lock(72491001)", c, tx)) await lockCmd.ExecuteNonQueryAsync();
+        await using (var next = new NpgsqlCommand("SELECT COALESCE(max(CASE WHEN data->>'trans_id' ~ '^[0-9]{1,9}$' THEN (data->>'trans_id')::int END), 0) + 1 FROM htdpay.transactions", c, tx))
+            row["trans_id"] = Convert.ToInt32(await next.ExecuteScalarAsync());
+        row["_id"] ??= JsonValue.Create(Guid.NewGuid().ToString("N"));
+        await using (var insert = new NpgsqlCommand("INSERT INTO htdpay.transactions(record_key,data) VALUES (@id,@data::jsonb)", c, tx))
+        {
+            insert.Parameters.AddWithValue("id", J.Str(row, "_id")); insert.Parameters.AddWithValue("data", row.ToJsonString());
+            await insert.ExecuteNonQueryAsync();
+        }
+        await tx.CommitAsync();
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (transaction != null) await transaction.DisposeAsync();

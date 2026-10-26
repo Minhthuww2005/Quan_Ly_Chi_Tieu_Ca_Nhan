@@ -1,0 +1,30 @@
+{
+  "generatedAt": "2026-10-24T06:47:05.269462+00:00",
+  "endpoint": "http://localhost:5082/api/health",
+  "warmupRequests": 20,
+  "method": "client end-to-end with urllib HTTP connection per request; p95 nearest rank; no TLS; no writes; health database query only",
+  "groups": {
+    "1": {
+      "samples": 200,
+      "elapsedSeconds": 0.3307262260000243,
+      "completedRequestsPerSecond": 604.7297863822427,
+      "meanMs": 1.6140255400091519,
+      "medianMs": 1.5254385001526316,
+      "p95Ms": 2.585478000128205,
+      "sampleStdDevMs": 0.43278030778145954,
+      "minimumMs": 0.9484409999913623,
+      "maximumMs": 4.488950999984809
+    },
+    "20": {
+      "samples": 200,
+      "elapsedSeconds": 0.11942062499997519,
+      "completedRequestsPerSecond": 1674.7525814744442,
+      "meanMs": 11.268938629998502,
+      "medianMs": 7.925814500026718,
+      "p95Ms": 38.33590600015668,
+      "sampleStdDevMs": 10.33713842939889,
+      "minimumMs": 0.9456669999963196,
+      "maximumMs": 47.86368700001731
+    }
+  }
+}

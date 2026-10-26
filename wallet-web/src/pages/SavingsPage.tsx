@@ -13,6 +13,7 @@ import {
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { savingsRate, useFinancePolicy } from '../services/financePolicy';
+import { useTransactionFlow } from '../components/TransactionFlow';
 
 const SAVINGS_TERMS = [0, 1, 3, 6, 12, 24, 36];
 
@@ -30,6 +31,7 @@ interface SavingsAccount {
 
 export default function SavingsPage() {
   const navigate = useNavigate();
+  const flow = useTransactionFlow();
   const [accounts, setAccounts] = useState<SavingsAccount[]>([]);
   const [summary, setSummary] = useState({ totalBalance: 0, totalInterest: 0, activeCount: 0 });
   const [loading, setLoading] = useState(true);
@@ -63,31 +65,39 @@ export default function SavingsPage() {
     }
   };
 
-  const handleCreate = async () => {
-    try {
-      const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
-      const response = await fetch('/api/savings/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: userInfo.user_id,
-          name: formData.name,
-          amount: parseFloat(formData.amount),
-          term: parseInt(formData.term)
-        })
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        setShowCreateModal(false);
-        fetchSavings();
-        setFormData({ name: '', amount: '', term: '12' });
-      } else {
-        alert(data.message);
-      }
-    } catch (error) {
-      console.error('Error creating savings:', error);
+  // Review -> PIN -> result, the same steps as phone top-up; the list refreshes without reloading the page.
+  const handleCreate = () => {
+    const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+    const amount = parseFloat(formData.amount);
+    const term = parseInt(formData.term);
+    if (!formData.name.trim() || !(amount > 0)) {
+      alert('Vui lòng nhập tên sổ và số tiền gửi');
+      return;
     }
+    setShowCreateModal(false);
+    flow.start({
+      title: 'Mở sổ tiết kiệm',
+      rows: [
+        { label: 'Tên sổ', value: formData.name },
+        { label: 'Kỳ hạn', value: term === 0 ? 'Không kỳ hạn' : `${term} tháng` },
+        { label: 'Lãi suất', value: `${rate ?? '...'}%/năm` },
+        { label: 'Số tiền trừ ví', value: new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount), highlight: true },
+      ],
+      actionLabel: 'Mở sổ',
+      processingText: 'Đang mở sổ...',
+      successText: 'Mở sổ tiết kiệm thành công!',
+      run: async (pin) => {
+        const response = await fetch('/api/savings/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: userInfo.user_id, pin, name: formData.name, amount, term })
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.message || 'Không thể mở sổ');
+        setFormData({ name: '', amount: '', term: '12' });
+        fetchSavings();
+      },
+    });
   };
 
   const formatMoney = (amount: number) => {
@@ -390,6 +400,7 @@ export default function SavingsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {flow.dialog}
     </div>
   );
 }

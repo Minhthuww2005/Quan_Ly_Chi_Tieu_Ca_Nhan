@@ -1,0 +1,57 @@
+-- Admin người dùng: một trang 20 dòng
+-- htdpay.transactions rows: 100556
+-- execution ms per run: [16.902, 16.22, 15.917, 27.378, 16.078]
+SELECT u.data::text, w.data->>'balance' AS _balance,
+             CASE WHEN w.record_key IS NULL THEN 0 ELSE (SELECT count(*) FROM htdpay.transactions t WHERE t.data->>'wallet_id' = w.data->>'wallet_id') END AS _transaction_count,
+             (SELECT k.data->>'status' FROM htdpay.kycprofiles k WHERE k.owner_id = u.owner_id ORDER BY k.created_at DESC, k.ctid DESC LIMIT 1) AS _kyc_status
+           FROM htdpay.users u
+           LEFT JOIN htdpay.wallets w ON w.data->>'user_id' = u.data->>'user_id'
+           ORDER BY COALESCE(u.data->>'created_at', '') DESC, u.record_key
+           LIMIT 20 OFFSET 0
+
+Limit  (cost=899.66..2811.76 rows=20 width=148) (actual time=15.633..15.974 rows=20 loops=1)
+  Buffers: shared hit=598
+  ->  Result  (cost=899.66..959341.27 rows=10025 width=148) (actual time=15.632..15.970 rows=20 loops=1)
+        Buffers: shared hit=598
+        ->  Sort  (cost=899.66..924.72 rows=10025 width=362) (actual time=15.545..15.549 rows=20 loops=1)
+              Sort Key: (COALESCE((u.data ->> 'created_at'::text), ''::text)) DESC, u.record_key
+              Sort Method: top-N heapsort  Memory: 49kB
+              Buffers: shared hit=406
+              ->  Hash Left Join  (cost=1.56..632.90 rows=10025 width=362) (actual time=0.048..13.390 rows=10025 loops=1)
+                    Hash Cond: ((u.data ->> 'user_id'::text) = (w.data ->> 'user_id'::text))
+                    Buffers: shared hit=403
+                    ->  Seq Scan on users u  (cost=0.00..502.25 rows=10025 width=277) (actual time=0.002..1.243 rows=10025 loops=1)
+                          Buffers: shared hit=402
+                    ->  Hash  (cost=1.25..1.25 rows=25 width=246) (actual time=0.030..0.030 rows=25 loops=1)
+                          Buckets: 1024  Batches: 1  Memory Usage: 15kB
+                          Buffers: shared hit=1
+                          ->  Seq Scan on wallets w  (cost=0.00..1.25 rows=25 width=246) (actual time=0.006..0.008 rows=25 loops=1)
+                                Buffers: shared hit=1
+        SubPlan 1
+          ->  Aggregate  (cost=82.90..82.91 rows=1 width=8) (actual time=0.015..0.015 rows=1 loops=20)
+                Buffers: shared hit=156
+                ->  Bitmap Heap Scan on transactions t  (cost=4.58..82.85 rows=20 width=0) (actual time=0.007..0.013 rows=24 loops=20)
+                      Recheck Cond: ((data ->> 'wallet_id'::text) = (w.data ->> 'wallet_id'::text))
+                      Heap Blocks: exact=94
+                      Buffers: shared hit=156
+                      ->  Bitmap Index Scan on ix_htd_transaction_wallet  (cost=0.00..4.57 rows=20 width=0) (actual time=0.004..0.004 rows=24 loops=20)
+                            Index Cond: ((data ->> 'wallet_id'::text) = (w.data ->> 'wallet_id'::text))
+                            Buffers: shared hit=62
+        SubPlan 2
+          ->  Limit  (cost=12.67..12.67 rows=1 width=46) (actual time=0.005..0.005 rows=0 loops=20)
+                Buffers: shared hit=36
+                ->  Sort  (cost=12.67..12.68 rows=4 width=46) (actual time=0.004..0.004 rows=0 loops=20)
+                      Sort Key: k.created_at DESC, k.ctid DESC
+                      Sort Method: quicksort  Memory: 25kB
+                      Buffers: shared hit=36
+                      ->  Bitmap Heap Scan on kycprofiles k  (cost=4.18..12.65 rows=4 width=46) (actual time=0.002..0.002 rows=0 loops=20)
+                            Recheck Cond: (owner_id = u.owner_id)
+                            Heap Blocks: exact=8
+                            Buffers: shared hit=28
+                            ->  Bitmap Index Scan on ix_kycprofiles_owner  (cost=0.00..4.18 rows=4 width=0) (actual time=0.001..0.001 rows=1 loops=20)
+                                  Index Cond: (owner_id = u.owner_id)
+                                  Buffers: shared hit=20
+Planning:
+  Buffers: shared hit=459
+Planning Time: 1.212 ms
+Execution Time: 16.078 ms

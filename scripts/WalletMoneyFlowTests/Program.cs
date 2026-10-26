@@ -87,56 +87,56 @@ AdministrationService Admin() => new(store, config, protection, http, environmen
 // ---------- 1. Investments: the client can no longer choose the credited amount ----------
 Seed();
 var before = Balance(1);
-var created = await Call(Finance(), "POST", "/api/investments/create", new { user_id = 1, type = "Cổ phiếu mô phỏng", name = "QA Stock", amount = 5_000_000 }, 1);
+var created = await Call(Finance(), "POST", "/api/investments/create", new { user_id = 1, pin = Pin, type = "Cổ phiếu mô phỏng", name = "QA Stock", amount = 5_000_000 }, 1);
 var investmentId = J.Str(created.Body["investment"]!.AsObject(), "id");
-var sold = await Call(Finance(), "POST", "/api/investments/sell", new { user_id = 1, id = investmentId, sellPrice = 1_000_000_000_000m }, 1);
+var sold = await Call(Finance(), "POST", "/api/investments/sell", new { user_id = 1, pin = Pin, id = investmentId, sellPrice = 1_000_000_000_000m }, 1);
 Check(created.Status == 201 && sold.Status == 200, "Investment create/sell succeed");
 Check(Balance(1) == before, "Sell ignores client sellPrice=1e12: wallet only gets the server-held value back (no money minted)");
 
 Seed();
-created = await Call(Finance(), "POST", "/api/investments/create", new { user_id = 1, type = "Cổ phiếu mô phỏng", name = "QA Stock", amount = 5_000_000 }, 1);
+created = await Call(Finance(), "POST", "/api/investments/create", new { user_id = 1, pin = Pin, type = "Cổ phiếu mô phỏng", name = "QA Stock", amount = 5_000_000 }, 1);
 investmentId = J.Str(created.Body["investment"]!.AsObject(), "id");
 var update = await Call(Finance(), "PUT", "/api/investments/update", new { user_id = 1, id = investmentId, currentValue = 900_000_000 }, 1);
 Check(update.Status == 403, "User cannot revalue their own investment (update is back-office only)");
 var adminUpdate = await Call(Finance(), "PUT", "/api/investments/update", new { user_id = 1, id = investmentId, currentValue = 5_500_000 }, 3);
 var beforeSell = Balance(1);
-await Call(Finance(), "POST", "/api/investments/sell", new { user_id = 1, id = investmentId, sellPrice = 99_000_000 }, 1);
+await Call(Finance(), "POST", "/api/investments/sell", new { user_id = 1, pin = Pin, id = investmentId, sellPrice = 99_000_000 }, 1);
 Check(adminUpdate.Status == 200 && Balance(1) - beforeSell == 5_500_000, "Sell credits the server-stored value set by admin, not the client figure");
 
 Seed();
 prices.Set(("BTCUSDT", 100_000m));
-created = await Call(Finance(), "POST", "/api/investments/create", new { user_id = 1, type = FinancePolicy.CryptoType, name = "bitcoin", amount = 25_000_000 }, 1);
+created = await Call(Finance(), "POST", "/api/investments/create", new { user_id = 1, pin = Pin, type = FinancePolicy.CryptoType, name = "bitcoin", amount = 25_000_000 }, 1);
 var quantity = J.Money(created.Body["investment"]!.AsObject(), "quantity");
 prices.Set(("BTCUSDT", 120_000m));
 beforeSell = Balance(1);
-await Call(Finance(), "POST", "/api/investments/sell", new { user_id = 1, id = J.Str(created.Body["investment"]!.AsObject(), "id"), sellPrice = 1 }, 1);
+await Call(Finance(), "POST", "/api/investments/sell", new { user_id = 1, pin = Pin, id = J.Str(created.Body["investment"]!.AsObject(), "id"), sellPrice = 1 }, 1);
 Check(quantity == 0.01m && Balance(1) - beforeSell == 30_000_000, "Crypto sell = live price x quantity computed on server (0.01 BTC x 3.0e9 VND)");
 
 prices.Fail = true;
 before = Balance(1);
-var noPrice = await Call(Finance(), "POST", "/api/investments/create", new { user_id = 1, type = FinancePolicy.CryptoType, name = "bitcoin", amount = 5_000_000 }, 1);
+var noPrice = await Call(Finance(), "POST", "/api/investments/create", new { user_id = 1, pin = Pin, type = FinancePolicy.CryptoType, name = "bitcoin", amount = 5_000_000 }, 1);
 Check(noPrice.Status == 503 && Balance(1) == before, "Price source down: 503 and wallet untouched");
 prices.Fail = false;
 
 // ---------- 2. Loans and savings: rate and size are owned by the server ----------
 Seed();
-var loan = await Call(Finance(), "POST", "/api/loans/create", new { user_id = 1, type = "Vay tiêu dùng", amount = 20_000_000, interestRate = 0, term = 12 }, 1);
+var loan = await Call(Finance(), "POST", "/api/loans/create", new { user_id = 1, pin = Pin, type = "Vay tiêu dùng", amount = 20_000_000, interestRate = 0, term = 12 }, 1);
 Check(loan.Status == 201 && J.Money(loan.Body["loan"]!.AsObject(), "interestRate") == 18, "Loan ignores client interestRate=0 and uses the product rate (18%)");
-var tooBig = await Call(Finance(), "POST", "/api/loans/create", new { user_id = 1, type = "Vay tiêu dùng", amount = 600_000_000, term = 12 }, 1);
+var tooBig = await Call(Finance(), "POST", "/api/loans/create", new { user_id = 1, pin = Pin, type = "Vay tiêu dùng", amount = 600_000_000, term = 12 }, 1);
 Check(tooBig.Status == 400 && tooBig.Body["errors"]?["amount"] != null, "Loan above product maximum -> 400 with errors.amount");
-var unknown = await Call(Finance(), "POST", "/api/loans/create", new { user_id = 1, type = "Vay mô phỏng", amount = 20_000_000, term = 12 }, 1);
+var unknown = await Call(Finance(), "POST", "/api/loans/create", new { user_id = 1, pin = Pin, type = "Vay mô phỏng", amount = 20_000_000, term = 12 }, 1);
 Check(unknown.Status == 400 && unknown.Body["errors"]?["type"] != null, "Unknown loan product -> 400 with errors.type");
 before = Balance(1);
-var overCeiling = await Call(Finance(), "POST", "/api/loans/create", new { user_id = 1, type = "Vay mua xe", amount = 90_000_000, term = 24 }, 1);
+var overCeiling = await Call(Finance(), "POST", "/api/loans/create", new { user_id = 1, pin = Pin, type = "Vay mua xe", amount = 90_000_000, term = 24 }, 1);
 Check(overCeiling.Status == 403 && Balance(1) == before, "TIER_1 outstanding ceiling (100M) blocks 20M + 90M and credits nothing");
-await Call(Finance(), "POST", "/api/loans/create", new { user_id = 1, type = "Vay tiêu dùng", amount = 10_000_000, term = 12 }, 1);
-await Call(Finance(), "POST", "/api/loans/create", new { user_id = 1, type = "Vay tiêu dùng", amount = 10_000_000, term = 12 }, 1);
-var fourth = await Call(Finance(), "POST", "/api/loans/create", new { user_id = 1, type = "Vay tiêu dùng", amount = 10_000_000, term = 12 }, 1);
+await Call(Finance(), "POST", "/api/loans/create", new { user_id = 1, pin = Pin, type = "Vay tiêu dùng", amount = 10_000_000, term = 12 }, 1);
+await Call(Finance(), "POST", "/api/loans/create", new { user_id = 1, pin = Pin, type = "Vay tiêu dùng", amount = 10_000_000, term = 12 }, 1);
+var fourth = await Call(Finance(), "POST", "/api/loans/create", new { user_id = 1, pin = Pin, type = "Vay tiêu dùng", amount = 10_000_000, term = 12 }, 1);
 Check(fourth.Status == 403, "At most 3 active loans per user");
 
-var savings = await Call(Finance(), "POST", "/api/savings/create", new { user_id = 1, name = "QA", amount = 1_000_000, term = 12, interestRate = 100 }, 1);
+var savings = await Call(Finance(), "POST", "/api/savings/create", new { user_id = 1, pin = Pin, name = "QA", amount = 1_000_000, term = 12, interestRate = 100 }, 1);
 Check(savings.Status == 201 && J.Money(savings.Body["account"]!.AsObject(), "interestRate") == 7.0m, "Savings ignores client interestRate=100 and uses the term table (12 months = 7%)");
-var badTerm = await Call(Finance(), "POST", "/api/savings/create", new { user_id = 1, name = "QA", amount = 1_000_000, term = 61 }, 1);
+var badTerm = await Call(Finance(), "POST", "/api/savings/create", new { user_id = 1, pin = Pin, name = "QA", amount = 1_000_000, term = 61 }, 1);
 Check(badTerm.Status == 400 && badTerm.Body["errors"]?["term"] != null, "Savings term > 60 -> 400 with errors.term");
 
 // ---------- 3. Daily transfer limit counts only outgoing money ----------
@@ -238,7 +238,7 @@ var recording = new LockOrderRepository(store, prices);
 var controller = new FinanceController(new FinanceService(recording, config, protection, http, environment), recording);
 var context = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "1")], "Test")) };
 context.Request.Method = "POST"; context.Request.Path = "/api/investments/create"; context.Request.Headers["Idempotency-Key"] = "qa-lock-order-1";
-context.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { type = FinancePolicy.CryptoType, name = "btc", amount = 5_000_000 })));
+context.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { pin = Pin, type = FinancePolicy.CryptoType, name = "btc", amount = 5_000_000 })));
 context.Features.Set<Microsoft.AspNetCore.Http.Features.IHttpRequestBodyDetectionFeature>(new BodyDetection());
 controller.ControllerContext = new ControllerContext { HttpContext = context };
 var result = await controller.Execute();
@@ -248,7 +248,7 @@ Check(result is JsonResult { StatusCode: 201 } && recording.PriceCallsAtBegin ==
 Seed();
 var loanProducts = await Call(Finance(), "GET", "/api/loans/products", null, 1, key: null);
 var consumer = loanProducts.Body["products"]!.AsArray().OfType<JsonObject>().Single(x => J.Str(x, "type") == "Vay tiêu dùng");
-var appliedLoan = await Call(Finance(), "POST", "/api/loans/create", new { user_id = 1, type = "Vay tiêu dùng", amount = 10_000_000, term = 12 }, 1);
+var appliedLoan = await Call(Finance(), "POST", "/api/loans/create", new { user_id = 1, pin = Pin, type = "Vay tiêu dùng", amount = 10_000_000, term = 12 }, 1);
 Check(loanProducts.Status == 200 && J.Money(consumer, "annualRate") == J.Money(appliedLoan.Body["loan"]!.AsObject(), "interestRate") && J.Int(consumer, "maxTermMonths") == 60, "GET /loans/products shows the same rate that loans/create applies");
 var savingsProducts = await Call(Finance(), "GET", "/api/savings/products", null, 1, key: null);
 var tiers = savingsProducts.Body["tiers"]!.AsArray().OfType<JsonObject>().ToArray();
@@ -256,11 +256,11 @@ Check(savingsProducts.Status == 200 && Enumerable.Range(0, 61).All(term => J.Mon
 
 // ---------- 10. Flexible savings (term 0) earn interest for the months held ----------
 Seed();
-var flexible = await Call(Finance(), "POST", "/api/savings/create", new { user_id = 1, name = "QA linh hoạt", amount = 12_000_000, term = 0 }, 1);
+var flexible = await Call(Finance(), "POST", "/api/savings/create", new { user_id = 1, pin = Pin, name = "QA linh hoạt", amount = 12_000_000, term = 0 }, 1);
 var flexibleId = J.Str(flexible.Body["account"]!.AsObject(), "id");
 store.Tables["savingsaccounts"].Single(x => J.Str(x, "id") == flexibleId)["startDate"] = DateTime.UtcNow.AddDays(-95).ToString("yyyy-MM-dd");
 before = Balance(1);
-var closed = await Call(Finance(), "POST", "/api/savings/close", new { user_id = 1, id = flexibleId }, 1);
+var closed = await Call(Finance(), "POST", "/api/savings/close", new { user_id = 1, pin = Pin, id = flexibleId }, 1);
 Check(closed.Status == 200 && J.Money(closed.Body, "interest") == 126_000 && Balance(1) - before == 12_126_000, "Flexible savings held 3 months pays 12M x 4.2% x 3/12 = 126.000 (was always 0)");
 
 // ---------- 11. PIN is verified before the write lock, and re-checked inside it ----------
@@ -334,6 +334,52 @@ Check(J.Int(adminStats.Body["stats"]!.AsObject(), "totalUsers") == 3 && J.Int(ad
 Check(J.Str(firstKyc, "front_image") == "" && J.Bool(firstKyc, "has_images") && J.Str(kycDetail.Body["request"]!.AsObject(), "front_image") == Photo && J.Str(firstKyc, "user_name") == "Receiver",
       "KYC list omits photos (has_images=true); GET /admin/kyc/detail/{id} returns them");
 
+// ---------- 15. Savings, loans, investments and insurance ask for the transaction PIN ----------
+Seed();
+before = Balance(1);
+var insuranceNoPin = await Call(Finance(), "POST", "/api/insurance/create", new { user_id = 1, name = "QA", type = "QA", premium = 600_000, coverage = 100_000_000, term = 1 }, 1);
+var insuranceWrongPin = await Call(Finance(), "POST", "/api/insurance/create", new { user_id = 1, pin = "000000", name = "QA", type = "QA", premium = 600_000, coverage = 100_000_000, term = 1 }, 1);
+var savingsWrongPin = await Call(Finance(), "POST", "/api/savings/create", new { user_id = 1, pin = "000000", name = "QA", amount = 1_000_000, term = 6 }, 1);
+Check(insuranceNoPin.Status == 400 && J.Str(insuranceNoPin.Body, "code") == "PIN_REQUIRED" && insuranceWrongPin.Status == 401 && J.Str(insuranceWrongPin.Body, "code") == "INVALID_PIN"
+      && savingsWrongPin.Status == 401 && Balance(1) == before && store.Tables.GetValueOrDefault("insurances", []).Count == 0
+      && store.Attempts.TryGetValue("pin:1", out var pinFailures) && pinFailures.Failures == 2,
+      "Buying insurance or opening savings without the PIN -> 400 PIN_REQUIRED (not counted), wrong PIN -> 401 and counted; wallet unchanged");
+var insured = await Call(Finance(), "POST", "/api/insurance/create", new { user_id = 1, pin = Pin, name = "QA", type = "QA", premium = 600_000, coverage = 100_000_000, term = 1 }, 1);
+var policyId = J.Str(insured.Body["policy"]!.AsObject(), "id");
+var renewNoPin = await Call(Finance(), "POST", "/api/insurance/renew", new { user_id = 1, id = policyId, term = 1 }, 1);
+var loanForPin = await Call(Finance(), "POST", "/api/loans/create", new { user_id = 1, pin = Pin, type = "Vay tiêu dùng", amount = 10_000_000, term = 12 }, 1);
+var repayNoPin = await Call(Finance(), "POST", "/api/loans/payoff", new { user_id = 1, id = J.Str(loanForPin.Body["loan"]!.AsObject(), "id") }, 1);
+Check(insured.Status == 201 && Balance(1) == before - 600_000 + 10_000_000 && renewNoPin.Status == 400 && repayNoPin.Status == 400,
+      "With the correct PIN insurance is bought; renewing and repaying a loan also require the PIN");
+
+// ---------- 16. A rejected money operation stays in history as "failed"; balances and limits are unchanged ----------
+Seed();
+store.Tables["wallets"].Single(x => J.Int(x, "user_id") == 1)["balance"] = 1_000_000m;
+async Task<(int Status, string Message)> Through(WalletControllerBase controller, Func<Task<IActionResult>> execute, string path, object body)
+{
+    var ctx = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "1")], "Test")) };
+    ctx.Request.Method = "POST"; ctx.Request.Path = path; ctx.Request.Headers["Idempotency-Key"] = "qa-failed-" + Guid.NewGuid().ToString("N");
+    ctx.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(body)));
+    ctx.Features.Set<Microsoft.AspNetCore.Http.Features.IHttpRequestBodyDetectionFeature>(new BodyDetection());
+    controller.ControllerContext = new ControllerContext { HttpContext = ctx };
+    try { var ok = await execute() as JsonResult; return (ok?.StatusCode ?? 200, ""); }
+    catch (ApiError e) { return (e.Status, e.Message); }
+}
+List<JsonObject> History() => store.Tables["transactions"].Where(x => J.Int(x, "wallet_id") == 1).ToList();
+var financeController = new FinanceController(Finance(), store);
+var poorInsurance = await Through(financeController, financeController.Execute, "/api/insurance/create", new { pin = Pin, name = "Bảo hiểm sức khỏe", type = "Sức khỏe", premium = 1_800_000, coverage = 200_000_000, term = 1 });
+var failedRow = History().SingleOrDefault(x => J.Str(x, "status") == "failed");
+Check(poorInsurance.Status == 400 && failedRow != null && J.Money(failedRow, "amount") == -1_800_000 && J.Str(failedRow, "type") == "insurance"
+      && J.Str(failedRow, "failure_reason") == poorInsurance.Message && J.Int(failedRow, "trans_id") > 0 && Balance(1) == 1_000_000 && store.Tables.GetValueOrDefault("insurances", []).Count == 0,
+      "Insurance refused for insufficient balance -> one 'failed' history row with the reason; no policy, balance unchanged");
+var txController2 = new TransactionsController(Tx(), store);
+var poorTransfer = await Through(txController2, txController2.Execute, "/api/transactions/transfer", new { to_phone = "0900000002", amount = 2_000_000, pin = Pin });
+var noPin = await Through(financeController, financeController.Execute, "/api/insurance/create", new { name = "QA", type = "QA", premium = 600_000, coverage = 100_000_000, term = 1 });
+var todaySummary = await Call(Tx(), "GET", "/api/transfer/daily-summary/1", null, 1, key: null);
+Check(poorTransfer.Status == 400 && History().Count(x => J.Str(x, "status") == "failed") == 2 && noPin.Status == 400
+      && J.Money(todaySummary.Body["data"]!.AsObject(), "todaySent") == 0 && Balance(1) == 1_000_000 && Balance(2) == 100_000_000,
+      "Failed transfer is listed but not counted in today's sent total; a missing PIN (form error) is not recorded");
+
 var output = Path.GetFullPath(args.FirstOrDefault() ?? "docs/wallet-test-results/money-flow-results.json");
 Directory.CreateDirectory(Path.GetDirectoryName(output)!);
 await File.WriteAllTextAsync(output, JsonSerializer.Serialize(new { generatedAt = DateTimeOffset.UtcNow, passed = results.Count, scope = "production services/controller with in-memory repository; no PostgreSQL, network or real provider", results }, new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }));
@@ -349,6 +395,8 @@ sealed class MemoryRepository : IWalletRepository
     public async Task<string> NextCode(string table, string prefix) => prefix + ((await All(table)).Count + 1).ToString("D4");
     public Task Commit() => Task.CompletedTask;
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    public Task Rollback() => Task.CompletedTask;
+    public async Task RecordFailedTransaction(JsonObject row) { row["trans_id"] = await Next("transactions", "trans_id"); await Add("transactions", row); }
     // Same rules as the PostgreSQL authattempts table.
     public Dictionary<string, AuthAttempts> Attempts { get; } = [];
     public Task<AuthAttempts> GetAttempts(string key) => Task.FromResult(Attempts.GetValueOrDefault(key) ?? new AuthAttempts(0, null));

@@ -13,6 +13,7 @@ import {
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { loanProduct, useFinancePolicy } from '../services/financePolicy';
+import { useTransactionFlow } from '../components/TransactionFlow';
 
 const LOAN_TERMS = [12, 24, 36, 48, 60, 84, 120, 180, 240, 300];
 const DEFAULT_LOAN_TYPES = ['Vay tiêu dùng', 'Vay mua nhà', 'Vay mua xe', 'Vay kinh doanh'];
@@ -33,6 +34,7 @@ interface Loan {
 
 export default function LoanPage() {
   const navigate = useNavigate();
+  const flow = useTransactionFlow();
   const [loans, setLoans] = useState<Loan[]>([]);
   const [summary, setSummary] = useState({ totalBorrowed: 0, totalPaid: 0, totalRemaining: 0, activeCount: 0 });
   const [loading, setLoading] = useState(true);
@@ -67,31 +69,39 @@ export default function LoanPage() {
     }
   };
 
-  const handleCreate = async () => {
-    try {
-      const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
-      const response = await fetch('/api/loans/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: userInfo.user_id,
-          type: formData.type,
-          amount: parseFloat(formData.amount),
-          term: parseInt(formData.term)
-        })
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        setShowCreateModal(false);
-        fetchLoans();
-        setFormData({ type: 'Vay tiêu dùng', amount: '', term: '12' });
-      } else {
-        alert(data.message);
-      }
-    } catch (error) {
-      console.error('Error creating loan:', error);
+  // Review -> PIN -> result, the same steps as phone top-up; the list refreshes without reloading the page.
+  const handleCreate = () => {
+    const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+    const amount = parseFloat(formData.amount);
+    const term = parseInt(formData.term);
+    if (!(amount > 0)) {
+      alert('Vui lòng nhập số tiền vay');
+      return;
     }
+    setShowCreateModal(false);
+    flow.start({
+      title: 'Đăng ký khoản vay',
+      rows: [
+        { label: 'Loại vay', value: formData.type },
+        { label: 'Thời hạn', value: `${term} tháng` },
+        { label: 'Lãi suất', value: `${product?.annualRate ?? '...'}%/năm` },
+        { label: 'Tiền nhận vào ví', value: new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount), highlight: true },
+      ],
+      actionLabel: 'Nhận khoản vay',
+      processingText: 'Đang giải ngân...',
+      successText: 'Giải ngân khoản vay thành công!',
+      run: async (pin) => {
+        const response = await fetch('/api/loans/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: userInfo.user_id, pin, type: formData.type, amount, term })
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.message || 'Không thể tạo khoản vay');
+        setFormData({ type: 'Vay tiêu dùng', amount: '', term: '12' });
+        fetchLoans();
+      },
+    });
   };
 
   const formatMoney = (amount: number) => {
@@ -391,6 +401,7 @@ export default function LoanPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {flow.dialog}
     </div>
   );
 }

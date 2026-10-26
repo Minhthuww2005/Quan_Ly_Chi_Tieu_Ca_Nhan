@@ -1,0 +1,1146 @@
+{
+  "passed": 190,
+  "checks": [
+    {
+      "method": "GET",
+      "path": "/health",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/auth/register",
+      "status": 201,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/auth/login",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/auth/register",
+      "status": 201,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/auth/login",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/auth/register",
+      "status": 409,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/auth/login",
+      "status": 401,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/wallet/1",
+      "status": 401,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/wallet/2",
+      "status": 403,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/admin/stats",
+      "status": 403,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/auth/set-pin",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/auth/set-pin",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/loans/create",
+      "status": 400,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/loans/create",
+      "status": 400,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/loans/products",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/savings/products",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/loans/create",
+      "status": 201,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/loans/create",
+      "status": 403,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/wallet/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/transactions/transfer",
+      "status": 400,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/transactions/transfer",
+      "status": 401,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/transactions/transfer",
+      "status": 400,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/transactions/transfer",
+      "status": 400,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/transactions/transfer",
+      "status": 400,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/wallet/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/transactions/transfer",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/transactions/transfer",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/wallet/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/wallet/2",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/transfer/daily-summary/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/transfer/execute",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/savings/create",
+      "status": 201,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/savings/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/savings/close",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/savings/close",
+      "status": 400,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/savings/create",
+      "status": 201,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/savings/close",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/investments/create",
+      "status": 201,
+      "pass": true
+    },
+    {
+      "method": "PUT",
+      "path": "/investments/update",
+      "status": 403,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/wallet/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/investments/sell",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/wallet/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/investments/sell",
+      "status": 400,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/investments/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/loans/payment",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/loans/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/wallet/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/insurance/create",
+      "status": 400,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/insurance/create",
+      "status": 401,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/wallet/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/insurance/create",
+      "status": 201,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/insurance/renew",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/wallet/2",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/insurance/create",
+      "status": 400,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/transactions/2",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/wallet/2",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/insurance/cancel",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/insurance/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/cards/add",
+      "status": 201,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/cards/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "PATCH",
+      "path": "/cards/1/status",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "DELETE",
+      "path": "/cards/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/banks/supported",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/transactions/phone-topup",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/transactions/bill-payment",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/kyc/submit",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/kyc/status/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/kyc/status/1",
+      "status": 403,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/transactions/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/notifications/2",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "PATCH",
+      "path": "/notifications/2/read-all",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/contacts/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/merchants",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/merchants/billers",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/security/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/security/verify-password",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/security/change-pin",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/security/change-password",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/auth/forgot-password",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/auth/reset-password",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/auth/reset-password",
+      "status": 400,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/auth/login",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/admin/login",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/admin/stats",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/admin/users",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/admin/transactions",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/admin/kyc/requests",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/admin/kyc/approve/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/kyc/status/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/admin/kyc/approve/1",
+      "status": 409,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/bank-accounts",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/bank-accounts/verify",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/bank/link",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/bank/linked/2",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "PUT",
+      "path": "/bank/set-default",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/bank/topup",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "DELETE",
+      "path": "/bank/unlink/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "PATCH",
+      "path": "/admin/users/2/status",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/wallet/2",
+      "status": 403,
+      "pass": true
+    },
+    {
+      "method": "PATCH",
+      "path": "/admin/users/2/status",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/webhook/health",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/webhook/payment",
+      "status": 503,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/auth/config",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/auth/google",
+      "status": 401,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/auth/me",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "PATCH",
+      "path": "/auth/profile",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/auth/me",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "PATCH",
+      "path": "/auth/profile",
+      "status": 409,
+      "pass": true
+    },
+    {
+      "method": "PATCH",
+      "path": "/auth/profile",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/auth/me",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/wallet/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/transfer/execute",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/transfer/execute",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/wallet/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/transfer/execute",
+      "status": 409,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/transactions/bill-payment",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/transactions/bill-payment",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/transactions/bill-payment",
+      "status": 409,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/wallet/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/transactions/transfer ([1,2])",
+      "status": 400,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/transactions/transfer (\"abc\")",
+      "status": 400,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/transactions/transfer (5)",
+      "status": 400,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/transactions/transfer (null)",
+      "status": 400,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/transactions/transfer ({\"to_phone\":\"0928245002\",\"amou)",
+      "status": 400,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/transactions/transfer ({\"to_phone\":\"0928245002\",\"amou)",
+      "status": 400,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/transactions/transfer ({\"to_phone\":\"0928245002\",\"amou)",
+      "status": 400,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/transactions/transfer ({\"to_phone\":\"0928245002\",\"pin\")",
+      "status": 400,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/wallet/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/transactions/transfer ({\"to_phone\":\"0928245002\",\"amou)",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/wallet/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/wallet/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/wallet/2",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/transactions/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/transactions/transfer",
+      "status": 403,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/wallet/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/wallet/2",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/transactions/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/payments/vnpay/create",
+      "status": 401,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/payments/vnpay/ipn?vnp_SecureHash=bad",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/payments/vnpay/create",
+      "status": 201,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/wallet/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/payments/vnpay/verify?vnp_TmnCode=TESTHTD1&vnp_TxnRef=HTD0fb5c8c29a0e4c39b9ef55308c89b062&vnp_Amount=10000000&vnp_ResponseCode=00&vnp_TransactionStatus=00&vnp_TransactionNo=123456789&vnp_SecureHash=cbfd4376dd9a7694c8849878e2c0c08b7a893e86d2c3b69475f9226ff1da93c522341e69e9ef58a803a719d782566d04ea5b4ad9844c12e9f255a220ae61f7b7",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/wallet/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/payments/vnpay/ipn?vnp_TmnCode=TESTHTD1&vnp_TxnRef=HTD0fb5c8c29a0e4c39b9ef55308c89b062&vnp_Amount=20000000&vnp_ResponseCode=00&vnp_TransactionStatus=00&vnp_TransactionNo=123456789&vnp_SecureHash=7fb1c4583cd60da5b582a733f01983d9bbd03ac4d78020d2bebd1f8f279ff36d5cf4d081c4cfbe5eb73e4461314ecdcae928339ab08752e488126b3d93522b16",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/payments/vnpay/ipn?vnp_TmnCode=TESTHTD1&vnp_TxnRef=missing-order&vnp_Amount=10000000&vnp_ResponseCode=00&vnp_TransactionStatus=00&vnp_TransactionNo=123456789&vnp_SecureHash=241cb099b977e284662fc81f436f9a49a5665c94dbef86a5d4f5ddb5619fd64ca7def646a41fcef4cec3644c0296624c35217bd969b31f7b48c7031ff3f64f77",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/payments/vnpay/ipn?vnp_TmnCode=OTHERHTD&vnp_TxnRef=HTD0fb5c8c29a0e4c39b9ef55308c89b062&vnp_Amount=10000000&vnp_ResponseCode=00&vnp_TransactionStatus=00&vnp_TransactionNo=123456789&vnp_SecureHash=57440282551ad5c1f6b5898f9d6663cbffa43f342b8f3f33efae618f514ccc4deccf62164ecbbcf98891d29823d89f97ec098543ac0d2ea5a9510aa2fdb402e6",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/payments/vnpay/ipn?vnp_TmnCode=TESTHTD1&vnp_TxnRef=HTD0fb5c8c29a0e4c39b9ef55308c89b062&vnp_Amount=10000000&vnp_ResponseCode=00&vnp_TransactionStatus=00&vnp_TransactionNo=123456789&vnp_SecureHash=cbfd4376dd9a7694c8849878e2c0c08b7a893e86d2c3b69475f9226ff1da93c522341e69e9ef58a803a719d782566d04ea5b4ad9844c12e9f255a220ae61f7b7",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/payments/vnpay/ipn?vnp_TmnCode=TESTHTD1&vnp_TxnRef=HTD0fb5c8c29a0e4c39b9ef55308c89b062&vnp_Amount=10000000&vnp_ResponseCode=00&vnp_TransactionStatus=00&vnp_TransactionNo=123456789&vnp_SecureHash=cbfd4376dd9a7694c8849878e2c0c08b7a893e86d2c3b69475f9226ff1da93c522341e69e9ef58a803a719d782566d04ea5b4ad9844c12e9f255a220ae61f7b7",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/wallet/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/payments/status/HTD0fb5c8c29a0e4c39b9ef55308c89b062",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/payments/status/HTD0fb5c8c29a0e4c39b9ef55308c89b062",
+      "status": 403,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/payments/vnpay/create",
+      "status": 201,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/wallet/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/payments/vnpay/ipn?vnp_TmnCode=TESTHTD1&vnp_TxnRef=HTD6303347e966a4f74b61f033a3ae05ccf&vnp_Amount=10000000&vnp_ResponseCode=24&vnp_TransactionStatus=02&vnp_TransactionNo=123456789&vnp_SecureHash=99aeb07b2a7b4d41b754379b5b3534adb15e8203015342021a8a608f44964bb0e75f6e672fe51e0ba4d51274f4fae505d5aa8445d0446daf750ba5e5d59e4a57",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/payments/status/HTD6303347e966a4f74b61f033a3ae05ccf",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/wallet/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/payments/vnpay/create",
+      "status": 201,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/transactions/bill-payment",
+      "status": 409,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/wallet/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/payments/vnpay/ipn?vnp_TmnCode=TESTHTD1&vnp_TxnRef=HTD05c6bc025aeb42a593cab800d4b0b45f&vnp_Amount=5000000&vnp_ResponseCode=00&vnp_TransactionStatus=00&vnp_TransactionNo=123456789&vnp_SecureHash=cca1d518ec3ee1c3e97194965069d27e2b9f049be42ba0908596442a4d96bbcf776f5435e4a1d786e8008d8c3aaee4dde8fb843e7482fcd445cb3667a7714941",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/wallet/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/payments/vnpay/create",
+      "status": 409,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/payments/orders",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "PATCH",
+      "path": "/kyc/update-biometric/1",
+      "status": 400,
+      "pass": true
+    },
+    {
+      "method": "PATCH",
+      "path": "/kyc/update-biometric/1",
+      "status": 403,
+      "pass": true
+    },
+    {
+      "method": "PATCH",
+      "path": "/kyc/update-biometric/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/admin/kyc/requests",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/admin/kyc/detail/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/admin/kyc/approve/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/kyc/status/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/wallet/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/insurance/create",
+      "status": 201,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/wallet/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/insurance/renew",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "GET",
+      "path": "/wallet/1",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/auth/register",
+      "status": 201,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/auth/login",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/auth/set-pin",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/transactions/transfer",
+      "status": 401,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/transactions/transfer",
+      "status": 401,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/transactions/transfer",
+      "status": 401,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/transactions/transfer",
+      "status": 401,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/transactions/transfer",
+      "status": 429,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/transactions/transfer",
+      "status": 429,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/auth/login",
+      "status": 401,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/auth/login",
+      "status": 401,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/auth/login",
+      "status": 401,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/auth/login",
+      "status": 401,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/auth/login",
+      "status": 429,
+      "pass": true
+    },
+    {
+      "method": "POST",
+      "path": "/auth/login",
+      "status": 429,
+      "pass": true
+    }
+  ],
+  "provider_callback_mode": "independently signed local fixtures; not a real VNPay bank transaction"
+}

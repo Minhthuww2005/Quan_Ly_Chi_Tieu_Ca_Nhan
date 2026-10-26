@@ -36,8 +36,9 @@ public sealed class TransactionService(IWalletRepository repository, IConfigurat
         if (Action is "transfer" or "execute")
         {
             var input = Bind<TransferRequest>();
-            await Pin(userFrom, input.PinValue);
             var amount = input.Amount!.Value;
+            Attempt(walletFrom, -amount, "transfer", "Chuyển tiền", input.Note ?? "");
+            await Pin(userFrom, input.PinValue);
             var phone = input.Phone;
             JsonObject userTo;
             if (!string.IsNullOrEmpty(phone)) userTo = await Find("users", "phone", phone);
@@ -53,11 +54,13 @@ public sealed class TransactionService(IWalletRepository repository, IConfigurat
             await Notify(J.Int(userTo, "user_id"), "Nhận tiền", $"Bạn đã nhận {amount:N0} VND");
             return J.Obj(new { success = true, message = "Chuyển tiền thành công", transaction = new { trans_id = J.Int(tx, "trans_id"), amount, recipient = J.Str(userTo, "name"), new_balance = J.Money(walletFrom, "balance") }, data = new { transactionId = "TRF" + J.Str(tx, "trans_id"), sender = new { userId = RequestedId, name = J.Str(userFrom, "name"), newBalance = J.Money(walletFrom, "balance") }, receiver = new { userId = J.Int(userTo, "user_id"), name = J.Str(userTo, "name"), phone, newBalance = J.Money(walletTo, "balance") }, amount, description, timestamp = Now, kycInfo = new { tier = J.Str(userFrom, "kycTier", "TIER_1"), dailyLimit = limit, todaySent = today + amount, remaining = limit - today - amount } } });
         }
-        await Pin(userFrom, J.Str(body, "pin", J.Str(body, "pinCode")));
         var paid = Amount(body, minimum: 10_000);
+        var pin = J.Str(body, "pin", J.Str(body, "pinCode"));
         if (Action == "bank-transfer")
         {
             Required("bank_code", "account_number");
+            Attempt(walletFrom, -paid, "transfer", "Chuyển đến ngân hàng", J.Str(body, "message", "Chuyển tiền ngân hàng"));
+            await Pin(userFrom, pin);
             // Same daily outgoing limit as internal transfers (both are recorded as type "transfer").
             await RequireTransferLimit(userFrom, walletFrom, paid);
             var account = (await store.All("bankaccounts")).FirstOrDefault(x => J.Str(x, "bank_code") == J.Str(body, "bank_code") && J.Str(x, "account_number") == J.Str(body, "account_number"));
@@ -68,10 +71,17 @@ public sealed class TransactionService(IWalletRepository repository, IConfigurat
             return J.Obj(new { success = true, message = "Chuyển tiền thành công (ngân hàng mô phỏng)", transaction = new { trans_id = J.Int(tx, "trans_id"), amount = paid, recipient = J.Str(account, "account_name"), new_balance = J.Money(walletFrom, "balance") } });
         }
         Require(Action is "phone-topup" or "bill-payment", "Endpoint không tồn tại", 404);
-        if (Action == "phone-topup") { Required("phone_number", "provider"); Require(new decimal[] { 10_000, 20_000, 50_000, 100_000, 200_000, 500_000 }.Contains(paid), "Mệnh giá không hợp lệ"); }
+        if (Action == "phone-topup")
+        {
+            Required("phone_number", "provider"); Require(new decimal[] { 10_000, 20_000, 50_000, 100_000, 200_000, 500_000 }.Contains(paid), "Mệnh giá không hợp lệ");
+            Attempt(walletFrom, -paid, "payment", "Nạp điện thoại", J.Str(body, "phone_number"));
+            await Pin(userFrom, pin);
+        }
         else
         {
             Required("bill_type", "bill_code");
+            Attempt(walletFrom, -paid, "bill_payment", "Thanh toán hóa đơn", J.Str(body, "bill_code"));
+            await Pin(userFrom, pin);
             var period = J.Str(body, "billing_period", DateTime.UtcNow.ToString("yyyy-MM"));
             Require(!(await store.All("payments")).Any(x => J.Int(x, "user_id") == RequestedId && J.Str(x, "bill_type") == J.Str(body, "bill_type") && J.Str(x, "bill_code") == J.Str(body, "bill_code") && J.Str(x, "billing_period") == period &&
                 (J.Str(x, "status") == "success" || J.Str(x, "status") == "pending" && DateTimeOffset.TryParse(J.Str(x, "expires_at"), out var expiry) && expiry > DateTimeOffset.UtcNow)), "Hóa đơn đã thanh toán hoặc đang chờ VNPay xử lý", 409);

@@ -9,6 +9,10 @@ public sealed class FinanceService(IWalletRepository repository, IConfiguration 
         return await ExecuteWithReceipt(context, Finance);
     }
 
+    // Every operation that moves money (open, close, buy, sell, borrow, repay, renew) needs the transaction PIN,
+    // the same as transfers and top-ups. The PIN is verified before the write lock in PrefetchAsync.
+    protected override bool VerifiesPin => true;
+
     private IReadOnlyDictionary<string, decimal>? prices;
     private string priceError = "Nguồn giá không phản hồi; ví chưa bị trừ tiền";
 
@@ -86,12 +90,14 @@ public sealed class FinanceService(IWalletRepository repository, IConfiguration 
             {
                 var input = Bind<SavingsCreateRequest>(); var amount = input.Amount!.Value; var term = input.Term!.Value;
                 var rate = FinancePolicy.SavingsRate(term); // server-owned; the client's interestRate is ignored
+                await ConfirmMoney(wallet, -amount, "savings", "Mở sổ tiết kiệm", input.Name!);
                 Debit(wallet, amount); record["id"] = await store.NextCode(table, "SAV"); record["name"] = input.Name; record["balance"] = amount; record["interestRate"] = rate; record["term"] = term; record["maturityDate"] = DateTime.UtcNow.AddMonths(term).ToString("yyyy-MM-dd"); record["expectedInterest"] = amount * rate * term / 1200;
                 await Record(wallet, -amount, "savings", "Mở sổ tiết kiệm", input.Name!); field = "account";
             }
             else if (Area == "investments")
             {
                 Required("name", "type"); var amount = Amount(body, minimum: 5_000_000);
+                await ConfirmMoney(wallet, -amount, "investment", "Đầu tư", J.Str(body, "name"));
                 var crypto = J.Str(body, "type") == FinancePolicy.CryptoType;
                 var price = crypto ? await CryptoPrice(J.Str(body, "name")) : 0; // fail before touching the wallet
                 Debit(wallet, amount);
@@ -103,6 +109,7 @@ public sealed class FinanceService(IWalletRepository repository, IConfiguration 
             {
                 var input = Bind<LoanCreateRequest>(); var amount = input.Amount!.Value; var term = input.Term!.Value;
                 var product = FinancePolicy.Loans[input.Type!]; var rate = product.AnnualRate; // server-owned rate
+                await ConfirmMoney(wallet, amount, "loan", "Giải ngân khoản vay", input.Type!);
                 var borrower = await User(RequestedId);
                 var activeLoans = (await store.All(table)).Where(x => J.Int(x, "user_id") == RequestedId && J.Str(x, "status") == "active").ToArray();
                 Require(activeLoans.Length < FinancePolicy.MaxActiveLoans, $"Tối đa {FinancePolicy.MaxActiveLoans} khoản vay đang hoạt động", 403, "LOAN_LIMIT_EXCEEDED");
@@ -115,6 +122,7 @@ public sealed class FinanceService(IWalletRepository repository, IConfiguration 
             else
             {
                 Required("name", "type", "term"); var premium = Amount(body, "premium", 500_000); var coverage = Amount(body, "coverage"); var term = Term(30);
+                await ConfirmMoney(wallet, -premium * term, "insurance", "Mua bảo hiểm", J.Str(body, "name"));
                 Debit(wallet, premium * term);
                 await Record(wallet, -premium * term, "insurance", "Mua bảo hiểm", J.Str(body, "name"));
                 record["id"] = await store.NextCode(table, "INS"); record["name"] = J.Str(body, "name"); record["type"] = J.Str(body, "type"); record["premium"] = premium; record["coverage"] = coverage; record["endDate"] = DateTime.UtcNow.AddYears(term).ToString("yyyy-MM-dd"); field = "policy";
@@ -135,13 +143,14 @@ public sealed class FinanceService(IWalletRepository repository, IConfiguration 
         if (Area == "insurance")
         {
             if (Action == "cancel") { Require(J.Str(item, "status") == "active", "Hợp đồng đã hủy"); item["status"] = "cancelled"; }
-            else if (Action == "renew") { var term = Term(30); Require(DateTime.TryParse(J.Str(item, "endDate"), out var end), "Ngày hết hạn không hợp lệ"); Debit(wallet, J.Money(item, "premium") * term); await Record(wallet, -J.Money(item, "premium") * term, "insurance", "Gia hạn bảo hiểm", J.Str(item, "name")); item["endDate"] = (end > DateTime.UtcNow ? end : DateTime.UtcNow).AddYears(term).ToString("yyyy-MM-dd"); item["status"] = "active"; }
+            else if (Action == "renew") { var term = Term(30); await ConfirmMoney(wallet, -J.Money(item, "premium") * term, "insurance", "Gia hạn bảo hiểm", J.Str(item, "name")); Require(DateTime.TryParse(J.Str(item, "endDate"), out var end), "Ngày hết hạn không hợp lệ"); Debit(wallet, J.Money(item, "premium") * term); await Record(wallet, -J.Money(item, "premium") * term, "insurance", "Gia hạn bảo hiểm", J.Str(item, "name")); item["endDate"] = (end > DateTime.UtcNow ? end : DateTime.UtcNow).AddYears(term).ToString("yyyy-MM-dd"); item["status"] = "active"; }
             else throw new ApiError(404, "Endpoint không tồn tại");
             return J.Obj(new { success = true, message = "Cập nhật bảo hiểm thành công", policy = J.Public(item) });
         }
         Require(J.Str(item, "status") == "active", "Khoản này không còn hoạt động");
         if (Area == "savings" && Action == "close")
         {
+            await ConfirmMoney(wallet, J.Money(item, "balance"), "savings", "Đóng sổ tiết kiệm", J.Str(item, "name"));
             Require(DateTime.TryParse(J.Str(item, "startDate"), out var start), "Ngày mở sổ không hợp lệ");
             var months = Math.Max(0, (int)Math.Floor((DateTime.UtcNow - start).TotalDays / 30)); var term = J.Int(item, "term"); var early = months < term;
             // Flexible savings (term 0) earn interest for every full month held; a term deposit earns up to its term.
@@ -153,6 +162,7 @@ public sealed class FinanceService(IWalletRepository repository, IConfiguration 
         if (Area == "investments")
         {
             Require(Action is "update" or "sell", "Endpoint không tồn tại", 404);
+            if (Action == "sell") await ConfirmMoney(wallet, J.Money(item, "currentValue"), "investment", "Bán đầu tư", J.Str(item, "name"));
             var crypto = J.Str(item, "type") == FinancePolicy.CryptoType && J.Money(item, "quantity") > 0;
             decimal value;
             if (Action == "update")
@@ -177,6 +187,7 @@ public sealed class FinanceService(IWalletRepository repository, IConfiguration 
             Require(Action is "payment" or "payoff", "Endpoint không tồn tại", 404);
             var remaining = J.Money(item, "remainingAmount"); var amount = Action == "payoff" ? remaining : Amount(body);
             Require(amount <= remaining && amount >= Math.Min(J.Money(item, "monthlyPayment"), remaining), "Số tiền trả khoản vay không hợp lệ");
+            await ConfirmMoney(wallet, -amount, "loan", "Thanh toán khoản vay", J.Str(item, "id"));
             Debit(wallet, amount); item["remainingAmount"] = remaining - amount;
             if (remaining == amount) item["status"] = "paid";
             Require(DateTime.TryParse(J.Str(item, "nextPaymentDate"), out var next), "Ngày thanh toán không hợp lệ"); item["nextPaymentDate"] = next.AddMonths(1).ToString("yyyy-MM-dd");
@@ -184,6 +195,16 @@ public sealed class FinanceService(IWalletRepository repository, IConfiguration 
             return J.Obj(new { success = true, message = "Thanh toán khoản vay thành công", remainingAmount = remaining - amount, payoffAmount = amount, totalPaid = J.Money(item, "amount") - remaining + amount, nextPaymentDate = J.Str(item, "nextPaymentDate"), status = J.Str(item, "status") });
         }
         throw new ApiError(404, "Endpoint không tồn tại");
+    }
+    // Declares the money movement (so a rejection is kept in history as "failed"), then checks the PIN.
+    private async Task ConfirmMoney(JsonObject wallet, decimal amount, string type, string title, string description)
+    {
+        var pin = J.Str(body, "pin", J.Str(body, "pinCode", J.Str(body, "pin_code")));
+        // A missing PIN is a form error, not a wrong guess: it neither counts towards the lockout nor
+        // becomes a failed transaction.
+        Require(pin.Length > 0, "Vui lòng nhập mã PIN giao dịch", 400, "PIN_REQUIRED");
+        Attempt(wallet, amount, type, title, description);
+        await Pin(await User(RequestedId), pin);
     }
     private int Term(int max) { var term = J.Int(body, "term"); Require(term >= 1 && term <= max, "Kỳ hạn không hợp lệ"); return term; }
     private static void UpdateProfit(JsonObject item, decimal value)

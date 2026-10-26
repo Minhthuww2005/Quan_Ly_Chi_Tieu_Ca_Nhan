@@ -1,0 +1,28 @@
+-- Admin giao dịch: thống kê trạng thái và khối lượng
+-- htdpay.transactions rows: 100556
+-- execution ms per run: [100.744, 99.69, 97.692, 102.031, 102.338]
+SELECT jsonb_build_object()::text,
+             count(*) AS total,
+             count(*) FILTER (WHERE data->>'status' IN ('success','completed')) AS completed,
+             count(*) FILTER (WHERE data->>'status' = 'pending') AS pending,
+             count(*) FILTER (WHERE data->>'status' = 'failed') AS failed,
+             COALESCE(sum(-(CASE jsonb_typeof(data->'amount') WHEN 'number' THEN (data->>'amount')::numeric WHEN 'string' THEN (CASE WHEN data->>'amount' ~ '^-?[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?$' THEN (data->>'amount')::numeric ELSE 0 END) ELSE 0 END)) FILTER (WHERE data->>'status' IN ('success','completed') AND (CASE jsonb_typeof(data->'amount') WHEN 'number' THEN (data->>'amount')::numeric WHEN 'string' THEN (CASE WHEN data->>'amount' ~ '^-?[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?$' THEN (data->>'amount')::numeric ELSE 0 END) ELSE 0 END) < 0), 0) AS total_volume,
+             COALESCE(sum((CASE jsonb_typeof(data->'fee') WHEN 'number' THEN (data->>'fee')::numeric WHEN 'string' THEN (CASE WHEN data->>'fee' ~ '^-?[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?$' THEN (data->>'fee')::numeric ELSE 0 END) ELSE 0 END)) FILTER (WHERE data->>'status' IN ('success','completed')), 0) AS total_fees,
+             count(*) FILTER (WHERE data->>'timestamp' LIKE '2026-10-24' || '%') AS today_transactions,
+             COALESCE(sum(-(CASE jsonb_typeof(data->'amount') WHEN 'number' THEN (data->>'amount')::numeric WHEN 'string' THEN (CASE WHEN data->>'amount' ~ '^-?[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?$' THEN (data->>'amount')::numeric ELSE 0 END) ELSE 0 END)) FILTER (WHERE data->>'status' IN ('success','completed') AND data->>'timestamp' LIKE '2026-10-24' || '%' AND (CASE jsonb_typeof(data->'amount') WHEN 'number' THEN (data->>'amount')::numeric WHEN 'string' THEN (CASE WHEN data->>'amount' ~ '^-?[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?$' THEN (data->>'amount')::numeric ELSE 0 END) ELSE 0 END) < 0), 0) AS today_volume
+           FROM htdpay.transactions
+
+Finalize Aggregate  (cost=27336.82..27336.84 rows=1 width=168) (actual time=102.158..102.235 rows=1 loops=1)
+  Buffers: shared hit=9529 read=7171 written=60
+  ->  Gather  (cost=27336.55..27336.76 rows=2 width=136) (actual time=98.684..102.201 rows=3 loops=1)
+        Workers Planned: 2
+        Workers Launched: 2
+        Buffers: shared hit=9529 read=7171 written=60
+        ->  Partial Aggregate  (cost=26336.55..26336.56 rows=1 width=136) (actual time=94.287..94.288 rows=1 loops=3)
+              Buffers: shared hit=9529 read=7171 written=60
+              ->  Parallel Seq Scan on transactions  (cost=0.00..17118.98 rows=41898 width=285) (actual time=2.193..16.175 rows=33519 loops=3)
+                    Buffers: shared hit=9529 read=7171 written=60
+Planning:
+  Buffers: shared hit=201
+Planning Time: 0.634 ms
+Execution Time: 102.338 ms

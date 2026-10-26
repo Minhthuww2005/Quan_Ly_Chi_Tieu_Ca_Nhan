@@ -6,8 +6,12 @@ import json
 import os
 import pathlib
 import runpy
+import subprocess
 import time
+import urllib.error
 import urllib.parse
+import urllib.request
+import uuid
 
 os.environ.setdefault('WALLET_TEST_BASE', 'http://localhost:5082/api')
 if os.environ['WALLET_TEST_BASE'] != 'http://localhost:5082/api':
@@ -44,6 +48,51 @@ paid = call('POST', '/transactions/bill-payment', bill, token, extra_headers=bil
 repeat = call('POST', '/transactions/bill-payment', bill, token, extra_headers=bill_key)
 assert paid['transaction']['trans_id'] == repeat['transaction']['trans_id']
 call('POST', '/transactions/bill-payment', bill, token, status=409)
+
+# The API reads JSON bodies by hand: valid JSON that is not an object, null, a decimal or an amount out of range
+# must each get a controlled 4xx (never a 500), and none of them may move money.
+def raw_transfer(text):
+    request = urllib.request.Request(os.environ['WALLET_TEST_BASE'] + '/transactions/transfer', data=text.encode(), method='POST',
+                                     headers={'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token, 'Idempotency-Key': 'qa-shape-' + uuid.uuid4().hex})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            status, data = response.status, json.load(response)
+    except urllib.error.HTTPError as error:
+        status, data = error.code, json.loads(error.read() or b'{}')
+    results.append({'method': 'POST', 'path': '/transactions/transfer (' + text[:30] + ')', 'status': status, 'pass': True})
+    return status, data
+shape_before = call('GET', f'/wallet/{first}', token=token)['wallet']['balance']
+for text in ('[1,2]', '"abc"', '5'):
+    status, data = raw_transfer(text)
+    assert status == 400 and data.get('code') == 'BODY_NOT_OBJECT', f'{text}: {status} {data}'
+assert raw_transfer('null')[0] == 400
+for amount in ('100.5', '99999999999999999', '-5'):
+    status, data = raw_transfer('{"to_phone":"%s","amount":%s,"pin":"%s"}' % (other_phone, amount, pin))
+    assert status == 400 and 'amount' in data.get('errors', {}), f'{amount}: {status} {data}'
+status, data = raw_transfer('{"to_phone":"%s","pin":"%s"}' % (other_phone, pin))
+assert status == 400 and 'amount' in data.get('errors', {})
+assert call('GET', f'/wallet/{first}', token=token)['wallet']['balance'] == shape_before, 'Rejected bodies must not move money'
+# A number sent as text is accepted by contract (the React client may send form values as strings).
+assert raw_transfer('{"to_phone":"%s","amount":"10000","pin":"%s"}' % (other_phone, pin))[0] == 200
+assert call('GET', f'/wallet/{first}', token=token)['wallet']['balance'] == shape_before - 10000
+
+# A fault between debit and credit: the receiver's wallet is frozen, so Credit fails after the sender was
+# already debited in memory. The whole request must roll back: both balances unchanged, no transfer saved.
+def wallet_status(status):
+    subprocess.run(['dotnet', 'run', '--project', 'scripts/WalletDatabaseTool', '--', '--local-test-wallet-status', suite['other_email'], status], check=True, stdout=subprocess.DEVNULL)
+sender_before = call('GET', f'/wallet/{first}', token=token)['wallet']['balance']
+receiver_before = call('GET', f'/wallet/{second}', token=other_token)['wallet']['balance']
+history_before = [t['trans_id'] for t in call('GET', f'/transactions/{first}', token=token)['transactions']]
+wallet_status('frozen')
+try:
+    halfway = call('POST', '/transactions/transfer', {'from_user_id': first, 'to_phone': other_phone, 'amount': 10000, 'pin': pin}, token, status=403)
+    assert halfway['message'] == 'Ví không hoạt động'
+finally:
+    wallet_status('active')
+assert call('GET', f'/wallet/{first}', token=token)['wallet']['balance'] == sender_before, 'Sender debit must be rolled back'
+assert call('GET', f'/wallet/{second}', token=other_token)['wallet']['balance'] == receiver_before
+new_rows = [t for t in call('GET', f'/transactions/{first}', token=token)['transactions'] if t['trans_id'] not in history_before]
+assert len(new_rows) == 1 and new_rows[0]['status'] == 'failed' and new_rows[0]['failure_reason'] == 'Ví không hoạt động', 'Only the failed attempt is recorded'
 call('POST', '/payments/vnpay/create', {'type': 'wallet_topup', 'amount': 100000, 'pin': '000000'}, token, status=401)
 assert call('GET', '/payments/vnpay/ipn?vnp_SecureHash=bad')['RspCode'] == '97'
 
@@ -97,9 +146,9 @@ call('POST', f'/admin/kyc/approve/{suite["kyc"]}', token=admin_token)
 assert call('GET', f'/kyc/status/{first}', token=token)['kyc']['photo_review_status'] == 'approved'
 
 before = call('GET', f'/wallet/{first}', token=token)['wallet']['balance']
-policy = call('POST', '/insurance/create', {'user_id': first, 'type': 'Mô phỏng', 'name': 'QA fees', 'premium': 500000, 'coverage': 10000000, 'term': 2}, token, status=201)['policy']['id']
+policy = call('POST', '/insurance/create', {'user_id': first, 'pin': pin, 'type': 'Mô phỏng', 'name': 'QA fees', 'premium': 500000, 'coverage': 10000000, 'term': 2}, token, status=201)['policy']['id']
 assert call('GET', f'/wallet/{first}', token=token)['wallet']['balance'] == before - 1000000
-call('POST', '/insurance/renew', {'user_id': first, 'id': policy, 'term': 1}, token)
+call('POST', '/insurance/renew', {'user_id': first, 'pin': pin, 'id': policy, 'term': 1}, token)
 assert call('GET', f'/wallet/{first}', token=token)['wallet']['balance'] == before - 1500000
 
 # Repeated wrong PIN / password lock the account for 15 minutes (separate QA user).

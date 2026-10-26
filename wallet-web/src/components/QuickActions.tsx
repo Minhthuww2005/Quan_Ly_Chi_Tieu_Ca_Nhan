@@ -17,6 +17,7 @@ import BankTopupModal from './BankTopupModal';
 import SetPinModal from './SetPinModal';
 import { WalletTransferModal, BankTransferModal, PhoneTopupModal, BillPaymentModal } from './EnhancedTransferModals';
 import { useNavigate } from 'react-router-dom';
+import { WALLET_CHANGED, notifyWalletChanged } from '../services/walletEvents';
 
 export default function QuickActions() {
   const navigate = useNavigate();
@@ -54,6 +55,8 @@ export default function QuickActions() {
     };
     
     loadBalance();
+    window.addEventListener(WALLET_CHANGED, loadBalance);
+    return () => window.removeEventListener(WALLET_CHANGED, loadBalance);
   }, []);
 
   const handleSetPinRequired = () => {
@@ -61,22 +64,8 @@ export default function QuickActions() {
     setShowSetPinModal(true);
   };
 
-  const handleTransactionSuccess = async () => {
-    // Reload balance after successful transaction
-    const userInfo = localStorage.getItem('userInfo');
-    if (!userInfo) return;
-    
-    const user = JSON.parse(userInfo);
-    const response = await fetch(`/api/wallet/${user.user_id}`);
-    const data = await response.json();
-    
-    if (data.success) {
-      setUserBalance(data.wallet.balance);
-    }
-    
-    // Refresh page to update all data
-    window.location.reload();
-  };
+  // Balance card, history and lists refresh themselves; no page reload.
+  const handleTransactionSuccess = () => notifyWalletChanged();
 
   const getIcon = (title: string) => {
     switch (title) {

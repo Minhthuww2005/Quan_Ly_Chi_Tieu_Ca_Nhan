@@ -1,0 +1,17 @@
+-- Next(transactions, trans_id): MAX + 1
+-- htdpay.transactions rows: 100556
+-- execution ms per run: [0.129, 0.131, 0.197, 0.129, 0.148]
+SELECT COALESCE(max(CASE WHEN data->>'trans_id' ~ '^[0-9]{1,9}$' THEN (data->>'trans_id')::int END), 0) FROM htdpay.transactions
+
+Result  (cost=1.47..1.48 rows=1 width=4) (actual time=0.087..0.088 rows=1 loops=1)
+  Buffers: shared hit=5
+  InitPlan 1 (returns $0)
+    ->  Limit  (cost=0.42..1.47 rows=1 width=4) (actual time=0.085..0.085 rows=1 loops=1)
+          Buffers: shared hit=5
+          ->  Index Scan Backward using ix_htd_transaction_number on transactions  (cost=0.42..580.15 rows=550 width=4) (actual time=0.084..0.084 rows=1 loops=1)
+                Index Cond: (CASE WHEN ((data ->> 'trans_id'::text) ~ '^[0-9]{1,9}$'::text) THEN ((data ->> 'trans_id'::text))::integer ELSE NULL::integer END IS NOT NULL)
+                Buffers: shared hit=5
+Planning:
+  Buffers: shared hit=202
+Planning Time: 0.556 ms
+Execution Time: 0.148 ms

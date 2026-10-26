@@ -16,6 +16,12 @@ public interface IWalletRepository : IAsyncDisposable
     Task<AuthAttempts> RecordFailure(string key, int maxFailures, TimeSpan lockFor) => Task.FromResult(new AuthAttempts(1, null));
     Task ClearAttempts(string key) => Task.CompletedTask;
 
+    // Ends the request's unit of work without saving anything (and releases the write lock).
+    Task Rollback() => Task.CompletedTask;
+    // Stores a money operation that a business rule rejected as a "failed" history row. It is written on its
+    // own connection after Rollback, so it survives the rejected request and never changes a balance.
+    Task RecordFailedTransaction(JsonObject row) => Task.CompletedTask;
+
     // One row read outside the request's unit of work (no cache, no transaction, no lock).
     // Only for checks whose result is re-validated inside the transaction, such as a PIN hash.
     async Task<JsonObject?> Peek(string table, string field, string value) =>

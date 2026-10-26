@@ -10,21 +10,23 @@ import { Badge } from '../components/ui/badge';
 import { Slider } from '../components/ui/slider';
 import { formatCurrency } from '../data/bankingData';
 import { loanProduct, savingsRate, useFinancePolicy } from '../services/financePolicy';
+import { useTransactionFlow, type TransactionRequest } from './TransactionFlow';
 
 interface ServiceModalProps {
   isOpen: boolean;
   onClose: () => void;
   type: 'savings' | 'loan' | 'insurance' | 'investment' | null;
+  onSuccess?: () => void;
 }
 
-export default function ServiceModal({ isOpen, onClose, type }: ServiceModalProps) {
+export default function ServiceModal({ isOpen, onClose, type, onSuccess }: ServiceModalProps) {
   const [selectedProduct, setSelectedProduct] = useState('');
   const [amount, setAmount] = useState('');
   const [term, setTerm] = useState(12);
   const [loanAmount, setLoanAmount] = useState([50000000]);
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const { policy } = useFinancePolicy();
+  const flow = useTransactionFlow();
 
   const savingsProducts = [
     { id: '1', name: 'Tiết kiệm có kỳ hạn', minAmount: 1000000, terms: [6, 12, 18, 24, 36] },
@@ -76,36 +78,91 @@ export default function ServiceModal({ isOpen, onClose, type }: ServiceModalProp
     return payment;
   };
 
-  const handleSubmit = async () => {
-    setSubmitting(true);
+  const resetForm = () => {
+    setSelectedProduct('');
+    setAmount('');
+    setTerm(12);
+    setLoanAmount([50000000]);
     setError('');
-    try {
-      const user = JSON.parse(localStorage.getItem('userInfo') || '{}');
-      if (!user.user_id) throw new Error('Vui lòng đăng nhập');
-      const savings = savingsProducts.find(p => p.id === selectedProduct);
-      const loan = loanProducts.find(p => p.id === selectedProduct);
-      const insurance = insuranceProducts.find(p => p.id === selectedProduct);
-      const investment = investmentProducts.find(p => p.id === selectedProduct);
-      const details = type === 'savings'
-        ? { name: savings!.name, amount: Number(amount), term }
-        : type === 'loan'
-        ? { type: loan!.name, amount: loanAmount[0], term }
-        : type === 'insurance'
-        ? { name: insurance!.name, type: insurance!.name, premium: insurance!.premium, coverage: insurance!.coverage, term: insurance!.term }
-        : { name: investment!.name, type: 'Quỹ đầu tư', amount: Number(amount) };
-      const area = type === 'loan' ? 'loans' : type === 'investment' ? 'investments' : type;
-      const response = await fetch(`/api/${area}/create`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: user.user_id, ...details }),
-      });
-      const result = await response.json();
-      if (!response.ok || !result.success) throw new Error(result.message || 'Không thể đăng ký');
-      alert(`Đã tạo ${getServiceName()} thành công.`);
-      onClose();
-      window.location.reload();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Không kết nối được máy chủ');
-    } finally { setSubmitting(false); }
+    flow.reset();
+  };
+
+  const handleClose = () => {
+    if (flow.step === 'processing') return;
+    resetForm();
+    onClose();
+  };
+
+  // Same steps as phone top-up: choose the product here, then review -> PIN -> result in this dialog.
+  // On success the balance and lists refresh in place; the page is not reloaded.
+  const handleNext = () => {
+    setError('');
+    const user = JSON.parse(localStorage.getItem('userInfo') || '{}');
+    if (!user.user_id) { setError('Vui lòng đăng nhập'); return; }
+    const savings = savingsProducts.find(p => p.id === selectedProduct);
+    const loan = loanProducts.find(p => p.id === selectedProduct);
+    const insurance = insuranceProducts.find(p => p.id === selectedProduct);
+    const investment = investmentProducts.find(p => p.id === selectedProduct);
+    const value = Number(amount);
+    if ((type === 'savings' || type === 'investment') && !(value > 0)) { setError('Vui lòng nhập số tiền'); return; }
+
+    let details: Record<string, unknown>;
+    let rows: TransactionRequest['rows'];
+    let actionLabel: string;
+    if (type === 'savings') {
+      details = { name: savings!.name, amount: value, term };
+      rows = [
+        { label: 'Sản phẩm', value: savings!.name },
+        { label: 'Kỳ hạn', value: term === 0 ? 'Không kỳ hạn' : `${term} tháng` },
+        { label: 'Lãi suất', value: `${savingsRateFor(term) ?? '...'}%/năm` },
+        { label: 'Số tiền trừ ví', value: formatCurrency(value), highlight: true },
+      ];
+      actionLabel = 'Mở sổ';
+    } else if (type === 'loan') {
+      details = { type: loan!.name, amount: loanAmount[0], term };
+      rows = [
+        { label: 'Sản phẩm', value: loan!.name },
+        { label: 'Thời hạn', value: `${term} tháng` },
+        { label: 'Lãi suất', value: `${loan!.rate ?? '...'}%/năm` },
+        { label: 'Trả hàng tháng', value: formatCurrency(calculateLoanPayment()) },
+        { label: 'Tiền nhận vào ví', value: formatCurrency(loanAmount[0]), highlight: true },
+      ];
+      actionLabel = 'Nhận khoản vay';
+    } else if (type === 'insurance') {
+      details = { name: insurance!.name, type: insurance!.name, premium: insurance!.premium, coverage: insurance!.coverage, term: insurance!.term };
+      rows = [
+        { label: 'Gói bảo hiểm', value: insurance!.name },
+        { label: 'Thời hạn', value: `${insurance!.term} năm` },
+        { label: 'Số tiền bảo hiểm', value: formatCurrency(insurance!.coverage) },
+        { label: 'Tổng phí trừ ví', value: formatCurrency(insurance!.premium * insurance!.term), highlight: true },
+      ];
+      actionLabel = 'Thanh toán';
+    } else {
+      details = { name: investment!.name, type: 'Quỹ đầu tư', amount: value };
+      rows = [
+        { label: 'Sản phẩm', value: investment!.name },
+        { label: 'Mức rủi ro', value: investment!.risk },
+        { label: 'Số tiền trừ ví', value: formatCurrency(value), highlight: true },
+      ];
+      actionLabel = 'Đầu tư';
+    }
+    const area = type === 'loan' ? 'loans' : type === 'investment' ? 'investments' : type;
+    flow.start({
+      title: getTitle(),
+      rows,
+      actionLabel,
+      processingText: 'Đang xử lý...',
+      successText: `Đã tạo ${getServiceName()} thành công!`,
+      run: async (pin) => {
+        const response = await fetch(`/api/${area}/create`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: user.user_id, pin, ...details }),
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.message || 'Không thể đăng ký');
+      },
+      onDone: () => { resetForm(); onSuccess?.(); onClose(); },
+    });
   };
 
   const getServiceName = () => {
@@ -335,7 +392,7 @@ export default function ServiceModal({ isOpen, onClose, type }: ServiceModalProp
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleClose(); }}>
       <DialogContent className="sm:max-w-md max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center space-x-2">
@@ -344,6 +401,7 @@ export default function ServiceModal({ isOpen, onClose, type }: ServiceModalProp
           </DialogTitle>
         </DialogHeader>
 
+        {flow.active ? flow.view : (
         <div className="space-y-4">
           {type === 'savings' && renderSavingsContent()}
           {type === 'loan' && renderLoanContent()}
@@ -352,18 +410,19 @@ export default function ServiceModal({ isOpen, onClose, type }: ServiceModalProp
           {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
 
           <div className="flex space-x-3 pt-4">
-            <Button variant="outline" onClick={onClose} className="flex-1">
+            <Button variant="outline" onClick={handleClose} className="flex-1">
               Hủy
             </Button>
             <Button 
-              onClick={handleSubmit} 
+              onClick={handleNext}
               className="flex-1 bg-gray-900 hover:bg-gray-800"
-              disabled={!selectedProduct || submitting}
+              disabled={!selectedProduct}
             >
-              Đăng ký ngay
+              Tiếp tục
             </Button>
           </div>
         </div>
+        )}
       </DialogContent>
     </Dialog>
   );

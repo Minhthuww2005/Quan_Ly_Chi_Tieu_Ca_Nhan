@@ -5,6 +5,7 @@ import { WalletTransferModal } from './EnhancedTransferModals';
 import BankTopupModal from './BankTopupModal';
 import SetPinModal from './SetPinModal';
 import { walletAPI } from '../services/api';
+import { WALLET_CHANGED, notifyWalletChanged } from '../services/walletEvents';
 
 export default function BalanceCard() {
   const [showBalance, setShowBalance] = useState(() => !JSON.parse(localStorage.getItem('userInfo') || '{}').settings?.hideBalance);
@@ -54,9 +55,13 @@ export default function BalanceCard() {
 
     fetchWallet();
     
-    // Reload wallet sau mỗi 30s để cập nhật số dư
+    // Reload wallet sau mỗi 30s để cập nhật số dư, và ngay sau mỗi giao dịch
     const interval = setInterval(fetchWallet, 30000);
-    return () => clearInterval(interval);
+    window.addEventListener(WALLET_CHANGED, fetchWallet);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener(WALLET_CHANGED, fetchWallet);
+    };
   }, []);
 
   const formatCurrency = (amount: number) => {
@@ -123,7 +128,7 @@ export default function BalanceCard() {
         isOpen={transferModalOpen}
         onClose={() => setTransferModalOpen(false)}
         userBalance={balance}
-        onSuccess={() => window.location.reload()}
+        onSuccess={notifyWalletChanged}
       />
 
       <BankTopupModal

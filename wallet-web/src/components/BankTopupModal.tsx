@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, ArrowRight, Loader2, Check, AlertCircle } from 'lucide-react';
+import { ArrowRight, Loader2, Check, AlertCircle } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Badge } from '../components/ui/badge';
 import { formatCurrency } from '../data/bankingData';
 import { bankAPI, supportedBankAPI, bankAccountAPI, type SupportedBankData } from '../services/api';
+import { notifyWalletChanged } from '../services/walletEvents';
 
 interface BankTopupModalProps {
   isOpen: boolean;
@@ -176,8 +177,8 @@ export default function BankTopupModal({ isOpen, onClose, onSetPinRequired }: Ba
         setStep(1);
         onClose();
         
-        // Refresh page to update balance
-        window.location.reload();
+        // Balance and history refresh in place; no page reload.
+        notifyWalletChanged();
       }
     } catch (error: any) {
       console.error('Top-up error:', error);
@@ -611,11 +612,8 @@ export default function BankTopupModal({ isOpen, onClose, onSetPinRequired }: Ba
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
-            <span>{showAddBankForm ? 'Liên kết ngân hàng mới' : 'Nạp tiền từ ngân hàng'}</span>
-            <Button variant="ghost" size="sm" onClick={onClose}>
-              <X className="w-4 h-4" />
-            </Button>
+          <DialogTitle>
+            {showAddBankForm ? 'Liên kết ngân hàng mới' : 'Nạp tiền từ ngân hàng'}
           </DialogTitle>
           <DialogDescription>
             {showAddBankForm && 'Nhập thông tin ngân hàng để liên kết'}

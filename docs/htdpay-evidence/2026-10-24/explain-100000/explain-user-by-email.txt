@@ -1,0 +1,18 @@
+-- Đăng nhập: FindOne(users, email, ignoreCase)
+-- htdpay.transactions rows: 100556
+-- execution ms per run: [0.053, 0.071, 0.053, 0.048, 0.062]
+SELECT record_key,data::text FROM htdpay.users WHERE lower(data->>'email') = lower('bench-12345@example.test') ORDER BY created_at, ctid LIMIT 1
+
+Limit  (cost=8.32..8.32 rows=1 width=58) (actual time=0.038..0.039 rows=0 loops=1)
+  Buffers: shared hit=10
+  ->  Sort  (cost=8.32..8.32 rows=1 width=58) (actual time=0.038..0.038 rows=0 loops=1)
+        Sort Key: created_at, ctid
+        Sort Method: quicksort  Memory: 25kB
+        Buffers: shared hit=10
+        ->  Index Scan using ux_htd_email on users  (cost=0.29..8.31 rows=1 width=58) (actual time=0.011..0.011 rows=0 loops=1)
+              Index Cond: (lower((data ->> 'email'::text)) = 'bench-12345@example.test'::text)
+              Buffers: shared hit=2
+Planning:
+  Buffers: shared hit=198
+Planning Time: 0.480 ms
+Execution Time: 0.062 ms

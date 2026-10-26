@@ -109,7 +109,7 @@ public abstract class WalletServiceBase(IWalletRepository repository, IConfigura
 
     protected async Task Prepare(WalletRequest context)
     {
-        request = context; body = context.Body; parts = context.Path[5..].Split('/', StringSplitOptions.RemoveEmptyEntries);
+        request = context; body = context.Body; FailedTransaction = null; parts = context.Path[5..].Split('/', StringSplitOptions.RemoveEmptyEntries);
         Require(parts.Length > 0, "Endpoint không tồn tại", 404);
         var anonymous = Area == "auth" && new[] { "login", "register", "forgot-password", "reset-password", "google", "config" }.Contains(Action)
             || Area == "admin" && Action == "login"
@@ -186,6 +186,15 @@ public abstract class WalletServiceBase(IWalletRepository repository, IConfigura
         foreach (var field in SecretFields) copy.Remove(field);
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(copy.ToJsonString())));
     }
+
+    public JsonObject? FailedTransaction { get; private set; }
+
+    // Declares the money operation this request is about to perform, after its input has been validated.
+    // If a rule rejects it afterwards (wrong PIN, insufficient balance, daily limit, locked recipient...),
+    // the controller rolls the request back and stores this row with status "failed": it shows up in the
+    // history with the reason, and no balance changes.
+    protected void Attempt(JsonObject wallet, decimal amount, string type, string title, string description) =>
+        FailedTransaction = J.Obj(new { wallet_id = J.Int(wallet, "wallet_id"), timestamp = Now, amount, type, status = "failed", title, description, icon = "⚠️", color = "#EF4444", reference = Guid.NewGuid().ToString("N") });
 
     protected async Task<JsonObject> Record(JsonObject wallet, decimal amount, string type, string title, string description, string? reference = null)
     {

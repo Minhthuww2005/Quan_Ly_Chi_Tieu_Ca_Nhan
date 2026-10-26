@@ -100,10 +100,13 @@ public sealed class BankingService(IWalletRepository repository, IConfiguration 
         }
         if (Method == "POST" && Action == "topup")
         {
-            var user = await User(RequestedId); await Pin(user, J.Str(body, "pin_code", J.Str(body, "pinCode", J.Str(body, "pin"))));
+            var user = await User(RequestedId);
             var bank = await Owned("linkedbanks", "bank_id", J.Str(body, "bank_id", J.Str(body, "linked_bank_id"))); Require(J.Str(bank, "status") == "active", "Liên kết không hoạt động");
             var amount = Amount(body, minimum: 50_000); Require(amount <= 50_000_000, "Tối đa 50.000.000 VND mỗi lần nạp");
-            var wallet = await Wallet(RequestedId); Require(await SentToday(wallet, "deposit") + amount <= 200_000_000, "Vượt hạn mức nạp tiền trong ngày", 403);
+            var wallet = await Wallet(RequestedId);
+            Attempt(wallet, amount, "deposit", "Nạp tiền", "Nạp từ " + J.Str(bank, "bank_name"));
+            await Pin(user, J.Str(body, "pin_code", J.Str(body, "pinCode", J.Str(body, "pin"))));
+            Require(await SentToday(wallet, "deposit") + amount <= 200_000_000, "Vượt hạn mức nạp tiền trong ngày", 403);
             var accounts = await store.All("bankaccounts"); var account = accounts.FirstOrDefault(x => J.Int(x, "account_id") == J.Int(bank, "account_id"));
             if (account == null)
             {

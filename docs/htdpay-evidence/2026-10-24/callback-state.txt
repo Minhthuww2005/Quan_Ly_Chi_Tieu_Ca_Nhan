@@ -1,0 +1,38 @@
+# Callback VNPay sandbox trong bộ HTTP extended (scripts/wallet-extended-tests.py, dòng 96–133).
+# Chữ ký HMAC-SHA512 do test tự tạo bằng secret QA; không phải giao dịch ngân hàng thật.
+# RspCode lấy từ assertion của test; log server chỉ ghi method, path, status và thời gian.
+
+## 1) Log request của API 5082 (RequestTraceMiddleware), chỉ route /api/payments/*
+
+HTTP POST /api/payments/vnpay/create completed with 401 in 384.94 ms                              # tạo đơn với PIN sai → 401, không tạo đơn
+HTTP GET /api/payments/vnpay/ipn completed with 200 in 14.22 ms                                   # IPN chữ ký sai → RspCode 97
+HTTP POST /api/payments/vnpay/create completed with 201 in 190.90 ms                              # tạo đơn nạp ví 100.000 (đơn A)
+HTTP GET /api/payments/vnpay/verify completed with 200 in 3.07 ms                                 # return URL /verify: chữ ký hợp lệ, số dư không đổi
+HTTP GET /api/payments/vnpay/ipn completed with 200 in 1.26 ms                                    # IPN đơn A, sai số tiền 200.000 → 04
+HTTP GET /api/payments/vnpay/ipn completed with 200 in 1.27 ms                                    # IPN mã đơn không tồn tại → 01
+HTTP GET /api/payments/vnpay/ipn completed with 200 in 1.02 ms                                    # IPN sai merchant → 97
+HTTP GET /api/payments/vnpay/ipn completed with 200 in 4.79 ms                                    # IPN đơn A hợp lệ, gửi đồng thời lần 1 → 00 hoặc 02
+HTTP GET /api/payments/vnpay/ipn completed with 200 in 5.10 ms                                    # IPN đơn A hợp lệ, gửi đồng thời lần 2 → 02 hoặc 00 (chỉ một lần cộng tiền)
+HTTP GET /api/payments/status/HTD0fb5c8c29a0e4c39b9ef55308c89b062 completed with 200 in 1.98 ms   # chủ đơn đọc trạng thái đơn A → success
+HTTP GET /api/payments/status/HTD0fb5c8c29a0e4c39b9ef55308c89b062 completed with 403 in 1.30 ms   # người dùng khác đọc đơn A → 403
+HTTP POST /api/payments/vnpay/create completed with 201 in 186.78 ms                              # tạo đơn nạp ví 100.000 (đơn B)
+HTTP GET /api/payments/vnpay/ipn completed with 200 in 6.48 ms                                    # IPN đơn B, ngân hàng báo thất bại (24/02) → 00, đơn failed, không cộng tiền
+HTTP GET /api/payments/status/HTD6303347e966a4f74b61f033a3ae05ccf completed with 200 in 3.41 ms   # đọc trạng thái đơn B → failed
+HTTP POST /api/payments/vnpay/create completed with 201 in 196.68 ms                              # tạo đơn thanh toán hóa đơn nước 50.000 qua VNPay (đơn C)
+HTTP GET /api/payments/vnpay/ipn completed with 200 in 6.76 ms                                    # IPN đơn C hợp lệ → 00, ghi hóa đơn, không trừ ví lần nữa
+HTTP POST /api/payments/vnpay/create completed with 409 in 177.74 ms                              # tạo lại đơn cho hóa đơn đã thanh toán → 409
+HTTP GET /api/payments/orders completed with 200 in 3.72 ms                                       # danh sách đơn của người dùng
+
+## 2) Trạng thái database sau khi bộ test kết thúc (đơn A = dòng 1, B = dòng 2, C = dòng 3)
+
+SQL: SELECT o.data->>'order_id' AS order_id, o.data->>'type' AS type, o.data->>'amount' AS amount, o.data->>'status' AS status, COALESCE(o.data->>'trans_id','') AS trans_id, (SELECT count(*) FROM htdpay.transactions t WHERE t.data->>'reference' = o.data->>'order_id') AS wallet_rows FROM htdpay.payments o WHERE o.data->>'kind' = 'vnpay_order' ORDER BY o.created_at
+
+              order_id               |     type     | amount | status  | trans_id | wallet_rows 
+-------------------------------------+--------------+--------+---------+----------+-------------
+ HTD0fb5c8c29a0e4c39b9ef55308c89b062 | wallet_topup | 100000 | success | 32       |           1
+ HTD6303347e966a4f74b61f033a3ae05ccf | wallet_topup | 100000 | failed  |          |           0
+ HTD05c6bc025aeb42a593cab800d4b0b45f | bill_payment | 50000  | success | 34       |           1
+(3 rows)
+
+wallet_rows: số dòng giao dịch ví có reference = order_id. Đơn A nhận hai IPN hợp lệ đồng thời nhưng chỉ có một dòng nạp tiền;
+đơn B thất bại không tạo dòng nào; đơn C tạo một dòng bill_payment với amount 0 vì tiền đi từ ngân hàng, không trừ ví.

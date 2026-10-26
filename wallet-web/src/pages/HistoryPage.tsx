@@ -21,6 +21,7 @@ interface Transaction {
   color?: string;
   recipient?: string;
   reference?: string;
+  failure_reason?: string;
 }
 
 export default function HistoryPage() {
@@ -251,6 +252,9 @@ export default function HistoryPage() {
                     <div className="text-xs text-gray-500 leading-relaxed mb-2">
                       {transaction.description || 'Không có mô tả'}
                     </div>
+                    {transaction.status === 'failed' && transaction.failure_reason && (
+                      <div className="text-xs text-red-600 mb-2">Lý do: {transaction.failure_reason}</div>
+                    )}
                     <div className="flex items-center justify-between">
                       <div className="text-xs text-gray-400">
                         {formatDate(transaction.timestamp)}
@@ -262,7 +266,8 @@ export default function HistoryPage() {
                   </div>
                   
                   <div className="text-right flex-shrink-0">
-                    <div className={`font-semibold text-sm ${getAmountColor(transaction.amount)}`}>
+                    {/* A failed operation moved no money: the amount is shown struck through. */}
+                    <div className={`font-semibold text-sm ${transaction.status === 'failed' ? 'text-gray-400 line-through' : getAmountColor(transaction.amount)}`}>
                       {transaction.amount > 0 ? '+' : ''}
                       {formatCurrency(transaction.amount)}
                     </div>

@@ -59,15 +59,15 @@ call('GET', f'/wallet/{second}', token=token, status=403)
 call('GET', '/admin/stats', token=token, status=403)
 call('POST', '/auth/set-pin', {'userId': first, 'pinCode': pin}, token)
 call('POST', '/auth/set-pin', {'userId': second, 'pinCode': pin}, other_token)
-call('POST', '/loans/create', {'user_id': first, 'type': 'Vay mô phỏng', 'amount': 20000000, 'term': 12}, token, status=400)
-call('POST', '/loans/create', {'user_id': first, 'type': 'Vay tiêu dùng', 'amount': 600000000, 'term': 12}, token, status=400)
+call('POST', '/loans/create', {'user_id': first, 'pin': pin, 'type': 'Vay mô phỏng', 'amount': 20000000, 'term': 12}, token, status=400)
+call('POST', '/loans/create', {'user_id': first, 'pin': pin, 'type': 'Vay tiêu dùng', 'amount': 600000000, 'term': 12}, token, status=400)
 products = call('GET', '/loans/products', token=token)['products']
 consumer = next(p for p in products if p['type'] == 'Vay tiêu dùng')
 assert call('GET', '/savings/products', token=token)['tiers'][0] == {'fromTerm': 0, 'toTerm': 0, 'annualRate': 4.2}
-created_loan = call('POST', '/loans/create', {'user_id': first, 'type': 'Vay tiêu dùng', 'amount': 20000000, 'interestRate': 0, 'term': 12}, token, status=201)['loan']
+created_loan = call('POST', '/loans/create', {'user_id': first, 'pin': pin, 'type': 'Vay tiêu dùng', 'amount': 20000000, 'interestRate': 0, 'term': 12}, token, status=201)['loan']
 assert created_loan['interestRate'] == consumer['annualRate'] == 18, 'Loan rate must come from the server product table, not the client'
 loan = created_loan['id']
-call('POST', '/loans/create', {'user_id': first, 'type': 'Vay mua xe', 'amount': 90000000, 'term': 24}, token, status=403)
+call('POST', '/loans/create', {'user_id': first, 'pin': pin, 'type': 'Vay mua xe', 'amount': 90000000, 'term': 24}, token, status=403)
 before = call('GET', f'/wallet/{first}', token=token)['wallet']['balance']
 call('POST', '/transactions/transfer', {'from_user_id': first, 'to_phone': other_phone, 'amount': -10000, 'pin': pin}, token, status=400)
 call('POST', '/transactions/transfer', {'from_user_id': first, 'to_phone': other_phone, 'amount': 10000, 'pin': '000000'}, token, status=401)
@@ -83,25 +83,36 @@ assert call('GET', f'/wallet/{first}', token=token)['wallet']['balance'] == befo
 assert call('GET', f'/wallet/{second}', token=other_token)['wallet']['balance'] == 20000
 call('GET', f'/transfer/daily-summary/{first}', token=token)
 call('POST', '/transfer/execute', {'senderId': first, 'receiverPhone': other_phone, 'amount': 10000, 'pinCode': pin}, token)
-created_savings = call('POST', '/savings/create', {'user_id': first, 'name': 'QA Savings', 'amount': 1000000, 'term': 3, 'interestRate': 100}, token, status=201)['account']
+created_savings = call('POST', '/savings/create', {'user_id': first, 'pin': pin, 'name': 'QA Savings', 'amount': 1000000, 'term': 3, 'interestRate': 100}, token, status=201)['account']
 assert created_savings['interestRate'] == 6.0, 'Savings rate must come from the server term table'
 savings = created_savings['id']
 call('GET', f'/savings/{first}', token=token)
-call('POST', '/savings/close', {'user_id': first, 'id': savings}, token)
-call('POST', '/savings/close', {'user_id': first, 'id': savings}, token, status=400)
-flexible = call('POST', '/savings/create', {'user_id': first, 'name': 'QA Flexible', 'amount': 500000, 'term': 0, 'interestRate': 4.2}, token, status=201)['account']['id']
-call('POST', '/savings/close', {'user_id': first, 'id': flexible}, token)
-investment = call('POST', '/investments/create', {'user_id': first, 'type': 'Cổ phiếu mô phỏng', 'name': 'QA Investment', 'amount': 5000000}, token, status=201)['investment']['id']
+call('POST', '/savings/close', {'user_id': first, 'pin': pin, 'id': savings}, token)
+call('POST', '/savings/close', {'user_id': first, 'pin': pin, 'id': savings}, token, status=400)
+flexible = call('POST', '/savings/create', {'user_id': first, 'pin': pin, 'name': 'QA Flexible', 'amount': 500000, 'term': 0, 'interestRate': 4.2}, token, status=201)['account']['id']
+call('POST', '/savings/close', {'user_id': first, 'pin': pin, 'id': flexible}, token)
+investment = call('POST', '/investments/create', {'user_id': first, 'pin': pin, 'type': 'Cổ phiếu mô phỏng', 'name': 'QA Investment', 'amount': 5000000}, token, status=201)['investment']['id']
 call('PUT', '/investments/update', {'user_id': first, 'id': investment, 'currentValue': 900000000}, token, status=403)
 before_sell = call('GET', f'/wallet/{first}', token=token)['wallet']['balance']
-call('POST', '/investments/sell', {'user_id': first, 'id': investment, 'sellPrice': 1000000000000}, token)
+call('POST', '/investments/sell', {'user_id': first, 'pin': pin, 'id': investment, 'sellPrice': 1000000000000}, token)
 assert call('GET', f'/wallet/{first}', token=token)['wallet']['balance'] == before_sell + 5000000, 'Sell must credit the server-held value, never the client sellPrice'
-call('POST', '/investments/sell', {'user_id': first, 'id': investment}, token, status=400)
+call('POST', '/investments/sell', {'user_id': first, 'pin': pin, 'id': investment}, token, status=400)
 call('GET', f'/investments/{first}', token=token)
-call('POST', '/loans/payment', {'user_id': first, 'id': loan, 'amount': 2000000}, token)
+call('POST', '/loans/payment', {'user_id': first, 'pin': pin, 'id': loan, 'amount': 2000000}, token)
 call('GET', f'/loans/{first}', token=token)
-policy = call('POST', '/insurance/create', {'user_id': first, 'type': 'Mô phỏng', 'name': 'QA policy', 'premium': 500000, 'coverage': 10000000, 'term': 1}, token, status=201)['policy']['id']
-call('POST', '/insurance/renew', {'user_id': first, 'id': policy, 'term': 1}, token)
+before_policy = call('GET', f'/wallet/{first}', token=token)['wallet']['balance']
+insurance = {'user_id': first, 'type': 'Mô phỏng', 'name': 'QA no PIN', 'premium': 500000, 'coverage': 10000000, 'term': 1}
+assert call('POST', '/insurance/create', insurance, token, status=400)['code'] == 'PIN_REQUIRED'
+call('POST', '/insurance/create', {**insurance, 'pin': '000000'}, token, status=401)
+assert call('GET', f'/wallet/{first}', token=token)['wallet']['balance'] == before_policy, 'Insurance without a valid PIN must not charge the wallet'
+policy = call('POST', '/insurance/create', {'user_id': first, 'pin': pin, 'type': 'Mô phỏng', 'name': 'QA policy', 'premium': 500000, 'coverage': 10000000, 'term': 1}, token, status=201)['policy']['id']
+call('POST', '/insurance/renew', {'user_id': first, 'pin': pin, 'id': policy, 'term': 1}, token)
+# A refused money operation is kept in history as "failed" with its reason, and moves no money.
+poor_before = call('GET', f'/wallet/{second}', token=other_token)['wallet']['balance']
+refused = call('POST', '/insurance/create', {'user_id': second, 'pin': pin, 'type': 'Mô phỏng', 'name': 'QA too expensive', 'premium': 9000000, 'coverage': 10000000, 'term': 1}, other_token, status=400)
+failed_rows = [t for t in call('GET', f'/transactions/{second}', token=other_token)['transactions'] if t['status'] == 'failed']
+assert len(failed_rows) == 1 and failed_rows[0]['amount'] == -9000000 and failed_rows[0]['failure_reason'] == refused['message'], 'Refused purchase must appear once as failed with its reason'
+assert call('GET', f'/wallet/{second}', token=other_token)['wallet']['balance'] == poor_before
 call('POST', '/insurance/cancel', {'user_id': first, 'id': policy}, token)
 call('GET', f'/insurance/{first}', token=token)
 card = call('POST', '/cards/add', {'user_id': first, 'card_number': '4111111111111111', 'holder_name': 'QA TEST', 'expiry_month': 12, 'expiry_year': 2030, 'brand': 'VISA', 'type': 'debit', 'issuer': 'QA'}, token, status=201)['card']['card_id']

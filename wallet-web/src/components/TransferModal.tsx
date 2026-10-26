@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, ArrowRight } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/
 import { Textarea } from '../components/ui/textarea';
 import { formatCurrency } from '../data/bankingData';
 import { transferAPI } from '../services/api';
+import { notifyWalletChanged } from '../services/walletEvents';
 
 interface TransferModalProps {
   isOpen: boolean;
@@ -91,8 +92,8 @@ export default function TransferModal({ isOpen, onClose, type }: TransferModalPr
             phoneNumber: '',
             topupType: 'prepaid'
           });
-          // Reload trang để cập nhật số dư
-          window.location.reload();
+          // Balance and history refresh in place; no page reload.
+          notifyWalletChanged();
         }
       } else {
         alert('Chức năng này đang được phát triển. Vui lòng chọn "Chuyển qua số điện thoại".');
@@ -310,12 +311,7 @@ export default function TransferModal({ isOpen, onClose, type }: TransferModalPr
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
-            <span>{getTitle()}</span>
-            <Button variant="ghost" size="sm" onClick={onClose}>
-              <X className="w-4 h-4" />
-            </Button>
-          </DialogTitle>
+          <DialogTitle>{getTitle()}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
