@@ -4,6 +4,31 @@ Bản HTD PAY chuyển từ đồ án Wallet-Funding sang ASP.NET Core và Neon 
 
 Ứng dụng quản lý doanh thu theo nhóm bằng ASP.NET Core 10, EF Core/Npgsql, PostgreSQL, Redis, React/TypeScript và SignalR. Bản tích hợp nằm trên nhánh `codex/integrate-revenueflow`, ghép `duy/core-auth`, `thanh/cache-query`, `thuw/queue-background`, `tuyen/realtime-options`.
 
+## Chạy HTD PAY hiện tại
+
+Cần .NET 10 SDK, Node.js và pnpm. Sao chép `.env.wallet.example` thành `.env.wallet`, cấu hình database và khóa JWT riêng. Không commit file cấu hình thật.
+
+```powershell
+docker compose up -d redis
+powershell -File scripts/start-wallet.ps1
+```
+
+Terminal khác:
+
+```powershell
+cd wallet-web
+pnpm install --frozen-lockfile
+pnpm dev
+```
+
+Client: http://localhost:5174/groups. Admin: http://localhost:5174/admin/groups sau đăng nhập admin. API: http://localhost:5081/api/health. `Cache__Redis` phải trỏ tới Redis đang chạy; cấu hình mẫu dùng cổng 6379. Database ví đã có dữ liệu không cần nhập lại; database trống cần khởi tạo bằng `-Initialize`. Các hướng dẫn RevenueFlow bên dưới thuộc ứng dụng nghiên cứu cũ và dùng cổng khác.
+
+## Chi tiêu nhóm HTD PAY
+
+Luồng nhóm tích hợp EF Core, Redis, Channel/BackgroundService và SignalR; xem [hướng dẫn kỹ thuật](docs/HTDPAY_FRAMEWORK_INTEGRATION.md).
+
+Client chọn **Nhóm** (`/groups`); admin chọn **Chi tiêu nhóm** (`/admin/groups`). Xem [hướng dẫn nhóm](docs/WALLET_GROUP_EXPENSES.md) về thành viên, ngân sách, ghi thu/chi và migration bổ sung.
+
 ## RevenueFlow: ứng dụng nghiên cứu có sẵn
 
 - REV-01: CRUD giao dịch Income, xóa mềm, kiểm tra quyền nhóm và RowVersion.

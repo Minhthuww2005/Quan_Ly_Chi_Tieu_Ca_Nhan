@@ -24,6 +24,7 @@ import NotificationsPage from './pages/NotificationsPage';
 import InsurancePage from './pages/InsurancePage';
 import PaymentsPage from './pages/PaymentsPage';
 import PaymentReturnPage from './pages/PaymentReturnPage';
+import GroupExpensesPage from './pages/GroupExpensesPage';
 
 const queryClient = new QueryClient();
 
@@ -138,6 +139,8 @@ const App = () => (
             </ProtectedRoute>
           } />
           
+          <Route path="/groups" element={<ProtectedRoute><GroupExpensesPage /></ProtectedRoute>} />
+          <Route path="/admin/groups" element={<AdminProtectedRoute><GroupExpensesPage admin /></AdminProtectedRoute>} />
           {/* Admin routes */}
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin/dashboard" element={

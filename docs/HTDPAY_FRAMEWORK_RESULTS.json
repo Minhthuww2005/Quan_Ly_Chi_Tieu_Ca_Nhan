@@ -1,0 +1,19 @@
+{
+  "date": "2026-10-23",
+  "database": "isolated local PostgreSQL 17, htdpay_groups_qa",
+  "serviceChecks": { "passed": 50, "externalDatabase": false },
+  "frameworkIntegrationChecks": {
+    "passed": 50,
+    "groupId": 4,
+    "efCore": "JSONB read/write and shared Npgsql rollback verified",
+    "redis": "MISS/HIT, TTL and generation invalidation verified",
+    "worker": "outbox scanner without Channel hint and graceful shutdown verified",
+    "signalR": "authenticated WebSocket, recipient isolation, revoked membership and reconnect verified"
+  },
+  "httpRegression": { "passed": 38, "groupId": 5, "concurrentStatuses": [200, 409], "personalWalletUnchanged": true },
+  "backendBuild": { "errors": 0, "warnings": 0 },
+  "frontendBuild": { "passed": true, "warnings": ["large main bundle", "dependency PURE annotations"] },
+  "browserInteractionVerified": false,
+  "githubActionsRunVerified": false,
+  "countsAreOverlappingScopes": true
+}

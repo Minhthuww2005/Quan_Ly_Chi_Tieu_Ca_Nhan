@@ -27,6 +27,16 @@ builder.Services.AddScoped<BankingService>();
 builder.Services.AddScoped<FinanceService>();
 builder.Services.AddScoped<CatalogService>();
 builder.Services.AddScoped<PaymentService>();
+builder.Services.AddScoped<GroupExpenseService>();
+builder.Services.AddStackExchangeRedisCache(options =>
+{
+    options.Configuration = builder.Configuration["Cache:Redis"] ?? "localhost:6379,abortConnect=false,connectTimeout=5000,syncTimeout=5000,asyncTimeout=5000";
+    options.InstanceName = GroupCacheNamespace.ForDatabase(connection);
+});
+builder.Services.AddSingleton<IGroupReportCache, GroupReportCache>();
+builder.Services.AddSingleton<GroupEventQueue>();
+builder.Services.AddHostedService<GroupEventWorker>();
+builder.Services.AddSignalR();
 builder.Services.AddSingleton<IVnpayGateway, VnpayGateway>();
 builder.Services.AddHttpClient();
 builder.Services.AddHttpClient("GoogleMetadata", client => client.Timeout = TimeSpan.FromSeconds(10));
@@ -35,6 +45,15 @@ builder.Services.AddDataProtection().SetApplicationName("HTDPay.Core")
     .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(builder.Environment.ContentRootPath, ".wallet-keys")));
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
 {
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            if (context.HttpContext.Request.Path.StartsWithSegments("/hubs/groups") && !string.IsNullOrEmpty(context.Request.Query["access_token"]))
+                context.Token = context.Request.Query["access_token"];
+            return Task.CompletedTask;
+        }
+    };
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuerSigningKey = true, IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)),
@@ -48,6 +67,7 @@ builder.Services.AddRateLimiter(o => o.AddPolicy("api", context => RateLimitPart
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 var app = builder.Build();
+await PostgresWalletRepository.InitializeGroupExpenses(app.Services.GetRequiredService<NpgsqlDataSource>());
 if (app.Configuration.GetValue<bool>("Database:Initialize"))
     await PostgresWalletRepository.Initialize(app.Services.GetRequiredService<NpgsqlDataSource>(), app.Configuration["Database:ImportPath"], app.Services.GetRequiredService<IDataProtectionProvider>().CreateProtector("SensitiveFields.v1"));
 if (args.Contains("--initialize-only")) return;
@@ -65,4 +85,5 @@ app.MapGet("/api/health", async (NpgsqlDataSource source) =>
     return Results.Ok(new { status = "ok", backend = "ASP.NET Core 10", database = "PostgreSQL", timestamp = DateTimeOffset.UtcNow });
 });
 app.MapControllers();
+app.MapHub<GroupExpensesHub>("/hubs/groups", options => options.CloseOnAuthenticationExpiration = true);
 await app.RunAsync();

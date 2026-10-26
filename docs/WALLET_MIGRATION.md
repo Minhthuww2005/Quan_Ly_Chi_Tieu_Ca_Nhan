@@ -27,3 +27,11 @@ Trong `wallet-web`, chạy `pnpm dev`. Giao diện: http://localhost:5174. API: 
 Bản cập nhật Google OAuth, VNPay sandbox và kiểm thử 137 ca HTTP được mô tả trong [WALLET_TEST_REPORT.md](WALLET_TEST_REPORT.md). Bảo hiểm demo hiện thu phí khi tạo và gia hạn. VNPay có checkout, Return URL và IPN xác minh chữ ký; cần URL backend công khai để nhận IPN thật. Chưa kiểm chứng đăng nhập Google bằng tài khoản thật hoặc giao dịch ngân hàng sandbox đầy đủ.
 
 
+
+## Bổ sung chi tiêu nhóm
+
+Client `/groups` và admin `/admin/groups` đã được nối vào menu HTD PAY. Backend tự bổ sung ba bảng nhóm trong schema htdpay khi khởi động; không cần nhập lại dữ liệu ví. Xem [phạm vi, phân quyền và kiểm thử nhóm](WALLET_GROUP_EXPENSES.md).
+
+## Tích hợp kỹ thuật vào chi tiêu nhóm
+
+Luồng nhóm sử dụng EF Core trên JSONB hiện có, Redis cache có phiên bản, outbox với Channel/BackgroundService và SignalR client/admin. Bản này bổ sung bảng group_outbox và schema version 3; giữ nguyên dữ liệu ví. Xem [cơ chế, cấu hình và giới hạn](HTDPAY_FRAMEWORK_INTEGRATION.md). Redis local cần được chạy và Cache__Redis trỏ đúng cổng; header BYPASS không được tính là bằng chứng Redis HIT.

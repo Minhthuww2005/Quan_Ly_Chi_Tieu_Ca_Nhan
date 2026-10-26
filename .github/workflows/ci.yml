@@ -102,6 +102,14 @@ jobs:
           path: |
             docs/wallet-test-results/
             /tmp/wallet-api.log
+  htdpay-groups:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: 10.0.x }
+      - run: dotnet build src/WalletFunding.Api --configuration Release
+      - run: dotnet run --project scripts/WalletGroupTests --configuration Release
   wallet-web:
     runs-on: ubuntu-latest
     steps:
@@ -116,3 +124,41 @@ jobs:
         working-directory: wallet-web
       - name: Frontend transport contract (PIN vs session, retry key reuse, single submit)
         run: node scripts/wallet-transport-tests.cjs
+  htdpay-integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: htdpay_groups_qa
+          POSTGRES_USER: htdpayqa
+          POSTGRES_PASSWORD: ci-groups-only
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U htdpayqa -d htdpay_groups_qa" --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      ConnectionStrings__Database: Host=127.0.0.1;Port=5432;Database=htdpay_groups_qa;Username=htdpayqa;Password=ci-groups-only;SSL Mode=Disable
+      WALLET_INTEGRATION_DB: Host=127.0.0.1;Port=5432;Database=htdpay_groups_qa;Username=htdpayqa;Password=ci-groups-only;SSL Mode=Disable
+      WALLET_TEST_BASE: http://127.0.0.1:5083/api
+      Cache__Redis: 127.0.0.1:6379,abortConnect=false,connectTimeout=5000,asyncTimeout=5000
+      Jwt__SigningKey: ci-group-integration-signing-key-32-characters
+      Database__Initialize: 'true'
+      ASPNETCORE_ENVIRONMENT: Development
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: 10.0.x }
+      - run: dotnet build src/WalletFunding.Api --configuration Release
+      - name: Start HTD PAY with isolated PostgreSQL and Redis
+        run: |
+          dotnet src/WalletFunding.Api/bin/Release/net10.0/WalletFunding.Api.dll --contentRoot "$PWD/src/WalletFunding.Api" --urls http://127.0.0.1:5083 > /tmp/htdpay-api.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:5083/api/health; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/htdpay-api.log
+          exit 1
+      - run: dotnet run --project scripts/WalletGroupIntegration --configuration Release
