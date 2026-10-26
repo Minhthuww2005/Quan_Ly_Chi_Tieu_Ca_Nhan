@@ -1,0 +1,1 @@
+{"pass": true, "http_checks": 38, "concurrent_statuses": [200, 409], "group_id": 2, "database": "isolated local PostgreSQL", "personal_wallet_unchanged": true}

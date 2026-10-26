@@ -1,0 +1,10 @@
+PASS: 58 money-flow/callback/validation regression checks -> money-flow-results.json
+PASS: 17 production controller transaction-boundary checks.
+PASS: 15 provider checks; Google claims/signatures and VNPay canonicalization/tampering verified.
+PASS: 50 group service checks (memory repository, no external database).
+PASS: 102 HTTP checks; concurrent transfers conserve balances; reset token is single-use; admin/ownership boundaries verified.
+PASS: 190 HTTP checks; VNPay success/failure/signature/amount/replay/ownership, profile and idempotency verified.
+PASS: 38 group HTTP checks (concurrent version update 200/409, personal wallet unchanged)
+PASS: 50 group integration checks (EF Core JSONB + shared rollback, Redis MISS/HIT, outbox worker, SignalR WebSocket)
+PASS: 4 frontend transport scenarios: wrong PIN keeps session; expired session clears; network retry reuses key; concurrent submission sends once.
+wallet-web: pnpm build OK

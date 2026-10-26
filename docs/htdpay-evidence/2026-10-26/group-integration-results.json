@@ -1,0 +1,1 @@
+{"pass":true,"checks":50,"efCore":"JSONB read/write and shared rollback verified","redis":"MISS/HIT and generation invalidation verified","worker":"durable outbox and graceful stop verified","signalR":"WebSocket owner/member/admin isolation and reconnect verified","groupId":1}
