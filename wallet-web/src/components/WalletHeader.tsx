@@ -26,7 +26,7 @@ export default function WalletHeader() {
   };
 
   return (
-    <div className="bg-gradient-to-r from-gray-800 to-black px-6 py-8 text-white">
+    <div className="bg-gradient-to-r from-pink-700 via-pink-600 to-rose-500 px-6 py-8 text-white">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <div className="w-14 h-14 bg-white/10 border border-white/20 rounded-full flex items-center justify-center font-bold text-sm overflow-hidden">

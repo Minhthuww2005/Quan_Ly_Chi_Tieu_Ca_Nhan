@@ -219,6 +219,26 @@ Check(noBill.Status == 400 && noBill.Body["errors"]?["billing_period"] != null, 
 noBill = await Call(Payments(), "POST", "/api/payments/vnpay/create", new { type = "bill_payment", amount = 100_000, pin = Pin }, 1);
 Check(noBill.Status == 400 && noBill.Body["errors"]?["bill_code"] != null, "VNPay create: bill_payment without bill_code -> 400 errors.bill_code");
 
+// Local demo settlement: signed callback + owner, explicitly disabled on public deployments.
+config["Vnpay:AllowLocalReturnSettlement"] = "true";
+config["Vnpay:ReturnUrl"] = "http://127.0.0.1:5174/payments/return";
+var localOrder = await Order();
+before = Balance(1);
+var localFields = Ipn(localOrder);
+var wrongOwner = await Call(Payments(), "POST", "/api/payments/vnpay/confirm-local", new { }, 2, query: localFields);
+Check(wrongOwner.Status == 403 && Balance(1) == before, "Local callback cannot settle another user's order");
+var localBad = new Dictionary<string, string>(localFields) { ["vnp_Amount"] = "1" };
+Check(J.Str((await Call(Payments(), "POST", "/api/payments/vnpay/confirm-local", new { }, 1, query: localBad)).Body, "RspCode") == "97" && Balance(1) == before, "Local callback rejects tampering without credit");
+var localOk = await Call(Payments(), "POST", "/api/payments/vnpay/confirm-local", new { }, 1, query: localFields);
+var localReplay = await Call(Payments(), "POST", "/api/payments/vnpay/confirm-local", new { }, 1, query: localFields);
+Check(J.Str(localOk.Body, "RspCode") == "00" && J.Str(localReplay.Body, "RspCode") == "02" && Balance(1) == before + 100_000, "Local callback credits once and replay never credits twice");
+environment.EnvironmentName = "Production";
+Check((await Call(Payments(), "POST", "/api/payments/vnpay/confirm-local", new { }, 1, query: localFields)).Status == 404, "Production never allows local settlement even with flag enabled");
+environment.EnvironmentName = "Development";
+config["Vnpay:ReturnUrl"] = "https://demo.example/payments/return";
+Check((await Call(Payments(), "POST", "/api/payments/vnpay/confirm-local", new { }, 1, query: localFields)).Status == 404, "Public return URL cannot enable local settlement");
+config["Vnpay:AllowLocalReturnSettlement"] = "false";
+
 // ---------- 7. Banking ----------
 Seed();
 var put = await Call(Banking(), "PUT", "/api/banks/supported/VCB", new { bank_name = "Vietcombank (đổi tên)" }, 3);

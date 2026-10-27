@@ -3,6 +3,7 @@ import { createContext, useContext } from 'react';
 export interface AuthConfiguration {
   googleClientId: string;
   vnpayEnabled: boolean;
+  vnpayLocalSettlement?: boolean;
   developmentReset: boolean;
 }
 

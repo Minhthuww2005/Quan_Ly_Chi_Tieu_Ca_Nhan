@@ -1,0 +1,12 @@
+**/bin
+**/obj
+**/node_modules
+.git
+.env*
+.wallet-build
+**/.wallet-keys
+docs
+wallet-web
+web
+tests
+scripts

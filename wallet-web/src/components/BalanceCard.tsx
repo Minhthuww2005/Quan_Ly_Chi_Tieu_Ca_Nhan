@@ -79,7 +79,7 @@ export default function BalanceCard() {
   return (
     <>
       {/* Account Balance Card */}
-      <div className="bg-gradient-to-br from-gray-100 to-white mx-4 -mt-6 rounded-2xl p-6 shadow-xl border border-gray-200 relative z-10 mb-6">
+      <div className="bg-gradient-to-br from-pink-50 via-white to-rose-50 mx-4 -mt-6 rounded-2xl p-6 shadow-xl border border-pink-100 relative z-10 mb-6">
         <div className="flex items-center justify-between mb-2">
           <div className="text-sm text-gray-600 font-medium">Tài khoản thanh toán</div>
           <button 

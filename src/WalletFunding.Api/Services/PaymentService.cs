@@ -14,7 +14,7 @@ public sealed class PaymentService(IWalletRepository repository, IConfiguration 
 
     private async Task<JsonObject> Process()
     {
-        if (Action == "vnpay" && parts.ElementAtOrDefault(2) is "ipn" or "verify") return await Callback(parts[2] == "ipn");
+        if (Action == "vnpay" && parts.ElementAtOrDefault(2) is "ipn" or "verify" or "confirm-local") return await Callback(parts[2] == "ipn", parts[2] == "confirm-local");
         var payments = await store.All("payments");
         if (Method == "GET" && Action == "orders")
         {
@@ -47,19 +47,24 @@ public sealed class PaymentService(IWalletRepository repository, IConfiguration 
         return J.Obj(new { success = true, order = OrderView(orderNew), paymentUrl = url });
     }
 
+    private bool LocalSettlementEnabled => environment.IsDevelopment() && config.GetValue<bool>("Vnpay:AllowLocalReturnSettlement")
+        && Uri.TryCreate(config["Vnpay:ReturnUrl"], UriKind.Absolute, out var uri) && uri.IsLoopback;
+
     private string contextIp() => request.Headers["X-HTD-Client-IP"] is { Length: > 0 } ip ? ip : "127.0.0.1";
 
-    private async Task<JsonObject> Callback(bool ipn)
+    private async Task<JsonObject> Callback(bool ipn, bool local = false)
     {
-        Require(Method == "GET", "Endpoint không tồn tại", 404);
+        Require(Method == (local ? "POST" : "GET"), "Endpoint không tồn tại", 404);
+        if (local) Require(LocalSettlementEnabled, "Xác nhận local chưa được bật", 404);
         var fields = request.Query.Values;
         if (!gateway.IsConfigured) return Reply("99", "VNPay chưa được cấu hình");
         if (!gateway.Verify(fields)) return Reply("97", "Chữ ký không hợp lệ");
         if (request.Query["vnp_TmnCode"] != gateway.MerchantCode) return Reply("97", "Merchant không khớp");
         var order = (await store.All("payments")).FirstOrDefault(x => J.Str(x, "kind") == "vnpay_order" && J.Str(x, "order_id") == request.Query["vnp_TxnRef"]);
         if (order == null) return Reply("01", "Không tìm thấy đơn hàng");
-        if (!decimal.TryParse(request.Query["vnp_Amount"], out var units) || units != J.Money(order, "amount") * 100) return Reply("04", "Số tiền không khớp");
-        if (!ipn) return J.Obj(new { success = true, signatureValid = true, responseCode = request.Query["vnp_ResponseCode"], orderId = J.Str(order, "order_id"), status = J.Str(order, "status"), message = "Kết quả được xác minh; trạng thái chỉ cập nhật qua IPN" });
+        if (!decimal.TryParse(request.Query["vnp_Amount"], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var units) || units != J.Money(order, "amount") * 100) return Reply("04", "Số tiền không khớp");
+        if (local) Require(current != null && J.Int(order, "user_id") == UserId, "Không có quyền xác nhận đơn", 403);
+        if (!ipn && !local) return J.Obj(new { success = true, signatureValid = true, responseCode = request.Query["vnp_ResponseCode"], orderId = J.Str(order, "order_id"), status = J.Str(order, "status"), message = "Kết quả được xác minh; trạng thái chỉ cập nhật qua IPN" });
         if (J.Str(order, "status") != "pending") return Reply("02", "Đơn hàng đã xử lý");
         var successful = request.Query["vnp_ResponseCode"] == "00" && request.Query["vnp_TransactionStatus"] == "00";
         if (Expired(order))
