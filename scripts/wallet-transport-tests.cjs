@@ -9,7 +9,7 @@ function harness(fetchImpl) {
   const redirects = [];
   const axios = { interceptors: { request: { use() {} }, response: { use() {} } } };
   const window = { fetch: fetchImpl, location: { assign: url => redirects.push(url) } };
-  const context = { window, localStorage: { getItem: key => values.get(key) || null, removeItem: key => values.delete(key) }, Headers, Request, Response, URL, Map, Date, crypto: require('node:crypto').webcrypto, exports: {}, require: name => { assert.equal(name, 'axios'); return axios; } };
+  const context = { window, localStorage: { getItem: key => values.get(key) || null, removeItem: key => values.delete(key) }, Headers, Request, Response, URL, Map, Date, crypto: require('node:crypto').webcrypto, exports: {}, require: name => { if (name === './api-origin') return { API_ORIGIN: '', apiUrl: path => path }; assert.equal(name, 'axios'); return axios; } };
   vm.runInNewContext(source, context);
   return { window, values, redirects };
 }
