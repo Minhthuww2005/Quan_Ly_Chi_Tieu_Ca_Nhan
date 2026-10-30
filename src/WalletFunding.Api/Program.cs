@@ -31,9 +31,11 @@ builder.Services.AddScoped<FinanceService>();
 builder.Services.AddScoped<CatalogService>();
 builder.Services.AddScoped<PaymentService>();
 builder.Services.AddScoped<GroupExpenseService>();
+var groupRedis = new GroupRedisConnection(builder.Configuration["Cache:Redis"] ?? "localhost:6379,abortConnect=false,connectTimeout=5000,syncTimeout=5000,asyncTimeout=5000");
+builder.Services.AddSingleton(groupRedis);
 builder.Services.AddStackExchangeRedisCache(options =>
 {
-    options.Configuration = builder.Configuration["Cache:Redis"] ?? "localhost:6379,abortConnect=false,connectTimeout=5000,syncTimeout=5000,asyncTimeout=5000";
+    options.ConnectionMultiplexerFactory = groupRedis.GetAsync;
     options.InstanceName = GroupCacheNamespace.ForDatabase(connection);
 });
 builder.Services.AddSingleton<IGroupReportCache, GroupReportCache>();
