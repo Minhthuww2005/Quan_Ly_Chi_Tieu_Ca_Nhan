@@ -1,9 +1,11 @@
+import { apiUrl, API_ORIGIN } from './api-origin';
 import axios from 'axios';
 
 // Admin pages and user pages share the same-origin .NET API proxy.
 axios.interceptors.request.use((config) => {
   const url = config.url || '';
   if (url.startsWith('/api/')) {
+    if (API_ORIGIN) config.baseURL = API_ORIGIN;
     const token = localStorage.getItem(url.startsWith('/api/admin/') ? 'adminToken' : 'token');
     if (token) config.headers.Authorization = `Bearer ${token}`;
   }
@@ -40,7 +42,7 @@ window.fetch = (input, init) => {
     retryKeys.set(signature, retry);
     if (!headers.has('Idempotency-Key')) headers.set('Idempotency-Key', retry.key);
   }
-  const pending = originalFetch(input, { ...init, headers }).then(async response => {
+  const pending = originalFetch(API_ORIGIN ? (input instanceof Request ? new Request(apiUrl(url), input) : apiUrl(url)) : input, { ...init, headers }).then(async response => {
     const errorBody = response.status === 401 ? await response.clone().json().catch(() => ({})) : {};
     expireSession(url, response.status, errorBody.code);
     if (signature) { inFlight.delete(signature); retryKeys.delete(signature); }

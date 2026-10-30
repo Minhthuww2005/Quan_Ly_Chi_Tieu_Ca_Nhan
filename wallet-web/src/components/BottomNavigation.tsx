@@ -24,8 +24,8 @@ export default function BottomNavigation() {
               key={item.id}
               onClick={() => navigate(item.path)}
               className={`flex flex-col items-center py-2 px-3 rounded-lg transition-colors ${
-                isActive 
-                  ? 'text-gray-900 bg-gray-100' 
+                isActive
+                  ? 'text-pink-700 bg-pink-50'
                   : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
               }`}
             >

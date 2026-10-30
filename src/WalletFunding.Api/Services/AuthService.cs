@@ -17,7 +17,7 @@ public sealed class AuthService(IWalletRepository repository, IConfiguration con
 
     private async Task<JsonObject> Auth()
     {
-        if (Method == "GET" && Action == "config") return J.Obj(new { success = true, googleClientId = config["Google:ClientId"] ?? "", vnpayEnabled = !string.IsNullOrWhiteSpace(config["Vnpay:TmnCode"]) && !string.IsNullOrWhiteSpace(config["Vnpay:HashSecret"]), developmentReset = environment.IsDevelopment() });
+        if (Method == "GET" && Action == "config") return J.Obj(new { success = true, googleClientId = config["Google:ClientId"] ?? "", vnpayEnabled = !string.IsNullOrWhiteSpace(config["Vnpay:TmnCode"]) && !string.IsNullOrWhiteSpace(config["Vnpay:HashSecret"]), vnpayLocalSettlement = environment.IsDevelopment() && config.GetValue<bool>("Vnpay:AllowLocalReturnSettlement") && Uri.TryCreate(config["Vnpay:ReturnUrl"], UriKind.Absolute, out var returnUri) && returnUri.IsLoopback, developmentReset = environment.IsDevelopment() });
         if (Method == "GET" && Action == "me") return J.Obj(new { success = true, user = LoginUser(current!) });
         if (Method == "PATCH" && Action == "profile")
         {

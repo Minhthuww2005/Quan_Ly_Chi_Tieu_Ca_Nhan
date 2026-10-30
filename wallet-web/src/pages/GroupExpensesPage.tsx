@@ -1,3 +1,4 @@
+import { apiUrl } from '../services/api-origin';
 import { useEffect, useRef, useState } from 'react';
 import { HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
 import { Link } from 'react-router-dom';
@@ -56,7 +57,8 @@ export default function GroupExpensesPage({ admin = false }: { admin?: boolean }
     let active = true;
     let retry: ReturnType<typeof setTimeout> | undefined;
     let changed: ReturnType<typeof setTimeout> | undefined;
-    const connection = new HubConnectionBuilder().withUrl('/hubs/groups', {
+    const connection = new HubConnectionBuilder().withUrl(apiUrl('/hubs/groups'), {
+      withCredentials: false,
       accessTokenFactory: () => localStorage.getItem(admin ? 'adminToken' : 'token') || '',
     }).withAutomaticReconnect().configureLogging(LogLevel.Error).build();
     const reload = () => {

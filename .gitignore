@@ -37,3 +37,5 @@ docs/demo-api.log
 
 **/.wallet-build-push/
 **/__pycache__/
+
+**/.vercel/

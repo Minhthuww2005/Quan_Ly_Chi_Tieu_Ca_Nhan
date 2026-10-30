@@ -18,6 +18,9 @@ if (string.IsNullOrWhiteSpace(connection) || string.IsNullOrWhiteSpace(signingKe
     throw new InvalidOperationException("Configure ConnectionStrings__Database and Jwt__SigningKey (32+ characters) through environment or User Secrets.");
 builder.Services.AddSingleton(NpgsqlDataSource.Create(connection));
 builder.Services.AddScoped<IWalletRepository, PostgresWalletRepository>();
+var allowedOrigins = (builder.Configuration["Cors:AllowedOrigins"] ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+if (allowedOrigins.Length > 0)
+    builder.Services.AddCors(options => options.AddPolicy("Frontend", policy => policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod()));
 builder.Services.AddControllers();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<AdministrationService>();
@@ -75,6 +78,7 @@ if (app.Configuration.GetValue<bool>("Database:Initialize"))
 if (args.Contains("--initialize-only")) return;
 app.UseMiddleware<RequestTraceMiddleware>();
 app.UseMiddleware<ApiExceptionMiddleware>();
+if (allowedOrigins.Length > 0) app.UseCors("Frontend");
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
