@@ -1,0 +1,11 @@
+PASS: 63 money-flow/callback/validation regression checks -> money-flow-results.json
+PASS: 17 production controller transaction-boundary checks.
+PASS: 15 provider checks; Google claims/signatures and VNPay canonicalization/tampering verified.
+PASS: 50 group service checks (memory repository, no external database).
+PASS: 102 HTTP checks; concurrent transfers conserve balances; reset token is single-use; admin/ownership boundaries verified.
+PASS: 190 HTTP checks; VNPay success/failure/signature/amount/replay/ownership, profile and idempotency verified.
+PASS: 38 group HTTP checks (group-http-results.json)
+PASS: 50 group integration checks (group-integration-results.json)
+PASS: 4 frontend transport scenarios: wrong PIN keeps session; expired session clears; network retry reuses key; concurrent submission sends once.
+wallet-web: pnpm build OK
+RevenueFlow build-test: Passed!  - Failed:     0, Passed:     4, Skipped:     0, Total:     4, Duration: 8 s - RevenueManagement.IntegrationTests.dll (net10.0) Passed!  - Failed:     0, Passed:   126, Skipped:     0, Total:   126, Duration: 7 s - RevenueManagement.UnitTests.dll (net10.0) 
