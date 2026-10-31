@@ -1,0 +1,44 @@
+{
+  "label": "924145b",
+  "api": "http://localhost:5085/api",
+  "redis": "not running",
+  "generatedAt": "2026-10-30T09:01:42Z",
+  "samples": [
+    {
+      "idleSecondsBefore": 0,
+      "listMs": 27.3,
+      "detailMs": 11131.2,
+      "cache": "BYPASS"
+    },
+    {
+      "idleSecondsBefore": 6,
+      "listMs": 9.4,
+      "detailMs": 5962.2,
+      "cache": "BYPASS"
+    },
+    {
+      "idleSecondsBefore": 6,
+      "listMs": 16.6,
+      "detailMs": 5982.1,
+      "cache": "BYPASS"
+    },
+    {
+      "idleSecondsBefore": 12,
+      "listMs": 8.2,
+      "detailMs": 5993.4,
+      "cache": "BYPASS"
+    },
+    {
+      "idleSecondsBefore": 1,
+      "listMs": 6.2,
+      "detailMs": 6.8,
+      "cache": "BYPASS"
+    },
+    {
+      "idleSecondsBefore": 1,
+      "listMs": 5.5,
+      "detailMs": 5.9,
+      "cache": "BYPASS"
+    }
+  ]
+}

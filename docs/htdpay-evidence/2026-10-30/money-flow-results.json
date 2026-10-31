@@ -1,0 +1,259 @@
+{
+  "generatedAt": "2026-10-30T08:55:52.5948122+00:00",
+  "passed": 63,
+  "scope": "production services/controller with in-memory repository; no PostgreSQL, network or real provider",
+  "results": [
+    {
+      "name": "Investment create/sell succeed",
+      "status": "passed"
+    },
+    {
+      "name": "Sell ignores client sellPrice=1e12: wallet only gets the server-held value back (no money minted)",
+      "status": "passed"
+    },
+    {
+      "name": "User cannot revalue their own investment (update is back-office only)",
+      "status": "passed"
+    },
+    {
+      "name": "Sell credits the server-stored value set by admin, not the client figure",
+      "status": "passed"
+    },
+    {
+      "name": "Crypto sell = live price x quantity computed on server (0.01 BTC x 3.0e9 VND)",
+      "status": "passed"
+    },
+    {
+      "name": "Price source down: 503 and wallet untouched",
+      "status": "passed"
+    },
+    {
+      "name": "Loan ignores client interestRate=0 and uses the product rate (18%)",
+      "status": "passed"
+    },
+    {
+      "name": "Loan above product maximum -> 400 with errors.amount",
+      "status": "passed"
+    },
+    {
+      "name": "Unknown loan product -> 400 with errors.type",
+      "status": "passed"
+    },
+    {
+      "name": "TIER_1 outstanding ceiling (100M) blocks 20M + 90M and credits nothing",
+      "status": "passed"
+    },
+    {
+      "name": "At most 3 active loans per user",
+      "status": "passed"
+    },
+    {
+      "name": "Savings ignores client interestRate=100 and uses the term table (12 months = 7%)",
+      "status": "passed"
+    },
+    {
+      "name": "Savings term > 60 -> 400 with errors.term",
+      "status": "passed"
+    },
+    {
+      "name": "Receiving 5M does not consume the receiver's own 5M sending limit",
+      "status": "passed"
+    },
+    {
+      "name": "Sender over 5M/day -> 403 and balance unchanged",
+      "status": "passed"
+    },
+    {
+      "name": "Bank transfer now shares the same daily limit (was unlimited)",
+      "status": "passed"
+    },
+    {
+      "name": "daily-summary of the receiver reports only what they sent",
+      "status": "passed"
+    },
+    {
+      "name": "Transfer conserves S+R and moves exactly A",
+      "status": "passed"
+    },
+    {
+      "name": "Typed validation: amount not a number -> 400 errors.amount, no balance change",
+      "status": "passed"
+    },
+    {
+      "name": "Typed validation: amount with decimals -> 400 errors.amount, no balance change",
+      "status": "passed"
+    },
+    {
+      "name": "Typed validation: amount below 10.000 -> 400 errors.amount, no balance change",
+      "status": "passed"
+    },
+    {
+      "name": "Typed validation: missing recipient -> 400 errors.to_phone, no balance change",
+      "status": "passed"
+    },
+    {
+      "name": "Typed validation: two recipients -> 400 errors.to_phone, no balance change",
+      "status": "passed"
+    },
+    {
+      "name": "Typed validation: PIN not 6 digits -> 400 errors.pin, no balance change",
+      "status": "passed"
+    },
+    {
+      "name": "Well-formed wrong PIN still -> 401 INVALID_PIN (session kept by client)",
+      "status": "passed"
+    },
+    {
+      "name": "Financial POST without Idempotency-Key -> 400, nothing debited",
+      "status": "passed"
+    },
+    {
+      "name": "Same key + same body replays the receipt and debits once",
+      "status": "passed"
+    },
+    {
+      "name": "Same key + different body -> 409",
+      "status": "passed"
+    },
+    {
+      "name": "Stored receipt fingerprint no longer covers the PIN",
+      "status": "passed"
+    },
+    {
+      "name": "Valid IPN credits once; replay -> 02",
+      "status": "passed"
+    },
+    {
+      "name": "Success IPN after expires_at: no credit, order expired + flagged for reconciliation",
+      "status": "passed"
+    },
+    {
+      "name": "Tampered amount -> 97",
+      "status": "passed"
+    },
+    {
+      "name": "VNPay create: amount > 50M -> 400 errors.amount",
+      "status": "passed"
+    },
+    {
+      "name": "VNPay create: malformed billing_period -> 400 errors.billing_period",
+      "status": "passed"
+    },
+    {
+      "name": "VNPay create: bill_payment without bill_code -> 400 errors.bill_code",
+      "status": "passed"
+    },
+    {
+      "name": "Local callback cannot settle another user's order",
+      "status": "passed"
+    },
+    {
+      "name": "Local callback rejects tampering without credit",
+      "status": "passed"
+    },
+    {
+      "name": "Local callback credits once and replay never credits twice",
+      "status": "passed"
+    },
+    {
+      "name": "Production never allows local settlement even with flag enabled",
+      "status": "passed"
+    },
+    {
+      "name": "Public return URL cannot enable local settlement",
+      "status": "passed"
+    },
+    {
+      "name": "Partial PUT bank updates the field (was 404 because of dangling else)",
+      "status": "passed"
+    },
+    {
+      "name": "DELETE bank really removes it (was a silent no-op)",
+      "status": "passed"
+    },
+    {
+      "name": "Non-admin cannot enumerate bank accounts via search",
+      "status": "passed"
+    },
+    {
+      "name": "Verify returns only payee confirmation fields",
+      "status": "passed"
+    },
+    {
+      "name": "Binance price is fetched before Begin(write): no external call while holding the advisory lock",
+      "status": "passed"
+    },
+    {
+      "name": "GET /loans/products shows the same rate that loans/create applies",
+      "status": "passed"
+    },
+    {
+      "name": "GET /savings/products covers every term 0-60 with the rate create applies",
+      "status": "passed"
+    },
+    {
+      "name": "Flexible savings held 3 months pays 12M x 4.2% x 3/12 = 126.000 (was always 0)",
+      "status": "passed"
+    },
+    {
+      "name": "PIN hash is read and verified before Begin(write) takes the advisory lock",
+      "status": "passed"
+    },
+    {
+      "name": "PIN changed between pre-check and lock is verified again and rejected; balance unchanged",
+      "status": "passed"
+    },
+    {
+      "name": "5 wrong PINs lock PIN use (429 PIN_LOCKED), even the correct PIN is refused while locked; no debit",
+      "status": "passed"
+    },
+    {
+      "name": "After the lock expires the correct PIN works and the counter is cleared",
+      "status": "passed"
+    },
+    {
+      "name": "Wrong PIN message tells how many attempts remain",
+      "status": "passed"
+    },
+    {
+      "name": "5 wrong passwords lock the identifier (case-insensitive) for login",
+      "status": "passed"
+    },
+    {
+      "name": "Login by phone still works",
+      "status": "passed"
+    },
+    {
+      "name": "Google with the email of a password account -> 409, account not linked",
+      "status": "passed"
+    },
+    {
+      "name": "A Google-created account signs in again with the same subject",
+      "status": "passed"
+    },
+    {
+      "name": "Admin stats, users page and transaction stats keep their shapes",
+      "status": "passed"
+    },
+    {
+      "name": "KYC list omits photos (has_images=true); GET /admin/kyc/detail/{id} returns them",
+      "status": "passed"
+    },
+    {
+      "name": "Buying insurance or opening savings without the PIN -> 400 PIN_REQUIRED (not counted), wrong PIN -> 401 and counted; wallet unchanged",
+      "status": "passed"
+    },
+    {
+      "name": "With the correct PIN insurance is bought; renewing and repaying a loan also require the PIN",
+      "status": "passed"
+    },
+    {
+      "name": "Insurance refused for insufficient balance -> one 'failed' history row with the reason; no policy, balance unchanged",
+      "status": "passed"
+    },
+    {
+      "name": "Failed transfer is listed but not counted in today's sent total; a missing PIN (form error) is not recorded",
+      "status": "passed"
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "label": "aea5664",
+  "api": "http://localhost:5086/api",
+  "redis": "not running",
+  "generatedAt": "2026-10-30T09:02:10Z",
+  "samples": [
+    {
+      "idleSecondsBefore": 0,
+      "listMs": 12.7,
+      "detailMs": 28.2,
+      "cache": "BYPASS"
+    },
+    {
+      "idleSecondsBefore": 6,
+      "listMs": 12.0,
+      "detailMs": 10.3,
+      "cache": "BYPASS"
+    },
+    {
+      "idleSecondsBefore": 6,
+      "listMs": 9.0,
+      "detailMs": 7.5,
+      "cache": "BYPASS"
+    },
+    {
+      "idleSecondsBefore": 12,
+      "listMs": 9.8,
+      "detailMs": 6.7,
+      "cache": "BYPASS"
+    },
+    {
+      "idleSecondsBefore": 1,
+      "listMs": 18.9,
+      "detailMs": 6.8,
+      "cache": "BYPASS"
+    },
+    {
+      "idleSecondsBefore": 1,
+      "listMs": 8.8,
+      "detailMs": 8.1,
+      "cache": "BYPASS"
+    }
+  ]
+}
